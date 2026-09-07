@@ -4,18 +4,18 @@
     "defaultSessionTitle": "新對話",
     "send": "發送",
     "placeholder": "輸入指令給 Kuugen...",
-    "greeting": "哈囉！我是 Kuugen 👋",
+    "greeting": "哈囉！我是 Kuugen。",
     "greetingSub": "有什麼我可以幫忙的嗎？",
-    "toggleThemeLight": "☀️ 切換亮色",
-    "toggleThemeDark": "🌙 切換暗色",
+    "toggleThemeLight": "切換亮色模式",
+    "toggleThemeDark": "切換暗色模式",
     "connected": "已連線",
     "disconnected": "未連線"
   },
   "cards": {
-    "newsReport": "📰 新聞趨勢報告",
-    "paperSummary": "📄 論文摘要已生成",
+    "newsReport": "新聞趨勢報告",
+    "paperSummary": "論文摘要已生成",
     "summaryLocation": "摘要儲存位置:",
-    "translationComplete": "📚 翻譯完成",
+    "translationComplete": "翻譯完成",
     "openTranslation": "打開翻譯:"
   },
   "step": {
@@ -26,15 +26,15 @@
     "stepsCompleted": "{completed}/{total} 步驟完成"
   },
   "status": {
-    "memory_retrieval": "🧠 正在整理對話記憶與上下文...",
-    "planning": "🔍 正在分析需求並規劃執行步驟...",
-    "plan_ready": "📋 規劃完成（共 {total} 個任務），準備平行執行...",
+    "memory_retrieval": "正在整理對話記憶與上下文...",
+    "planning": "正在分析需求並規劃執行步驟...",
+    "plan_ready": "規劃完成（共 {total} 個任務），準備平行執行...",
     "plan_empty": "任務規劃完成，無須額外執行步驟。",
-    "executing_single": "⚡ 正在執行 [{current}/{total}]：{task} ({node})...",
-    "executing_parallel": "⚡ 正在平行執行 ({count} 個任務)：{tasks}...",
-    "task_completed": "✅ 已完成 [{current}/{total}]：{task}",
-    "task_failed": "❌ 任務失敗 [{tid}]：{error}",
-    "finalizing": "📝 任務執行完畢，正在整理最終回覆...",
-    "finished": "✨ 處理完成，正在呈現回覆..."
+    "executing_single": "正在執行 [{current}/{total}]：{task} ({node})...",
+    "executing_parallel": "正在平行執行 ({count} 個任務)：{tasks}...",
+    "task_completed": "已完成 [{current}/{total}]：{task}",
+    "task_failed": "任務失敗 [{tid}]：{error}",
+    "finalizing": "任務執行完畢，正在整理最終回覆...",
+    "finished": "處理完成，正在呈現回覆..."
   }
 }

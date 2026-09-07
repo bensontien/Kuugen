@@ -6,124 +6,178 @@ The system features a clean separation between the "Brain" (LLM reasoning and pl
 
 ---
 
-## 🏗 System Architecture
+## System Architecture
 
 ```mermaid
 graph TD
-    subgraph Frontend [Kuugen UI - React]
-        UI[Instant Output Engine]
+    subgraph Frontend ["Frontend (Kuugen UI - React 19 + Vite)"]
+        UI_Chat["Chat Interface & GFM Markdown"]
+        UI_Steps["Real-Time Execution Steps Visualizer"]
+        UI_i18n["i18n Engine (zh-TW / en-US)"]
+        UI_Session["Session & Memory Management"]
     end
 
-    subgraph Backend [FastAPI Server]
-        Life[Lifespan Manager]
-        WS[WebSocket Endpoint]
-        Life -- 1. Trigger Warm-up --> Orch
+    subgraph Backend ["API Gateway (FastAPI - server.py)"]
+        WS["WebSocket Endpoint (/ws/chat)"]
+        Life["Lifespan Manager (Startup & Shutdown)"]
+        Mem["Session MemoryManager (Auto Context Compression)"]
     end
 
-    subgraph Core [Logic & State]
-        Orch[Kuugen Orchestrator]
-        Reg[Node Registry]
-        State[Agent State - Capability Aware]
-        Conv[Chinese Converter - OpenCC]
-        Mem[Memory Manager]
-        
-        Orch -- 2. Register Nodes --> Reg
-        Orch -- 5. Post-process Results --> Conv
+    subgraph CoreEngine ["Core Logic & Intelligence Kernel"]
+        Orch["Kuugen Orchestrator"]
+        Planner["Dynamic Planner (DAG Generation)"]
+        Scheduler["Hybrid Parallel Scheduler (Ray + AsyncIO)"]
+        Reg["Node Registry (Capability Discovery)"]
+        PromptLoad["PromptLoader (.kuugen Prompts-as-Code)"]
+        State["AgentState (Capability-Aware State)"]
+        Conv["Chinese Converter (OpenCC s2t)"]
     end
 
-    subgraph RayCluster [Ray Parallel Compute]
-        subgraph Actors [Parallel Agent Actors]
-            direction TB
-            AA_Chat[ChatAgentActor]
-            AA_News[NewsAgentActor]
-            AA_Paper[SearchPaperActor]
-            AA_Trans[TranslatorActor]
-            AA_Gen[GenericAgentActor]
+    subgraph RayCluster ["Distributed Compute Cluster (Ray)"]
+        subgraph ParallelActors ["Parallel Agent Actors"]
+            AA_Chat["ChatAgent Actor"]
+            AA_News["NewsAgent Actor"]
+            AA_Paper["SearchPaperAgent Actor"]
+            AA_Trans["PDFTranslatorAgent Actor"]
+            AA_Gen["GenericAgent Actor (Dynamic Tools)"]
+            AA_Func["FunctionActor (DownloadTool)"]
         end
 
-        subgraph Managers [Management Actors]
-            TM[ToolManagerActor]
+        subgraph ToolManagement ["Tool Management Actor"]
+            TM["ToolManagerActor (Ray Actor)"]
+            Proxy["RayToolManagerProxy"]
+        end
+
+        subgraph DistributedLLM ["Local Inference (Optional)"]
+            VLLM_Actor["VLLMRayActor (vLLM OpenAI Server)"]
         end
     end
 
-    subgraph Integration [External Tools & MCP]
-        MCP[MCP Server - KuugenTools]
-        CLI[Windows PowerShell]
-        TM -- Controls --> MCP
-        TM -- Executes --> CLI
+    subgraph FactoryLayer ["Factory & Abstraction Layer"]
+        AFactor["AgentFactory (Lazy Loading & Caching)"]
+        MFactor["ModelFactory (vLLM / OpenRouter / OpenAI)"]
     end
 
-    %% Interaction Flows
-    UI -- User Input --> WS
-    WS -- Dispatch --> Orch
-    Orch -- 3. Plan & Fetch Capability --> State
-    Orch -- 4. Parallel Execute --> Actors
-    Actors -- Call Tools --> TM
-    Orch -- 6. Return Traditional Text --> WS
-    WS -- Response --> UI
+    subgraph MuscleLayer ["Tool Execution Layer (The Muscle)"]
+        MCP["FastMCP Server (KuugenTools)"]
+        Scraper["Web Scraper (aiohttp + BeautifulSoup)"]
+        PDFDown["PDF Downloader"]
+        CLI["Host Windows PowerShell (WSL Bridge)"]
+    end
+
+    %% Communication Flows
+    Frontend <-->|"WebSocket (JSON Events & Status Streaming)"| WS
+    Life -- "1. Background Warm-up" --> Orch
+    WS -->|"2. Message & Compressed Context"| Orch
+    Orch -->|"Load Personas & Catalog"| PromptLoad
+    Orch -->|"Discover Nodes"| Reg
+    Orch -->|"3. Autonomous Planning"| Planner
+    Planner -->|"Build Task DAG"| State
+    Orch -->|"4. Stream Status & Steps"| WS
+    Orch -->|"5. Parallel Dispatch"| Scheduler
+    Scheduler -->|"Ray ObjectRefs"| ParallelActors
+    ParallelActors <-->|"Query & Execute Tools"| Proxy
+    Proxy <-->|"Remote IPC"| TM
+    TM -->|"FastMCP stdio"| MCP
+    TM -->|"Subprocess with Security Check"| CLI
+    MCP --> Scraper
+    MCP --> PDFDown
+    ParallelActors -->|"Return State"| Scheduler
+    Scheduler -->|"Merge Step Results"| State
+    Orch -->|"6. OpenCC Conversion"| Conv
+    Conv -->|"7. Final Result & Steps"| WS
+    AFactor -->|"Instantiate Agents"| ParallelActors
+    MFactor -->|"LLM Instances"| AFactor
+    MFactor -.->|"Local Inference Endpoint"| VLLM_Actor
 ```
 
 ### Key Architectural Pillars
--   **Ray-Powered Parallelism**: The orchestrator decomposes complex user queries into independent tasks that are executed concurrently across a Ray cluster, significantly reducing latency.
--   **Eager Initialization (Warm-up)**: Actors are pre-initialized during server startup, eliminating first-request latency.
--   **Dual-Track Routing**: 
-    -   **Specialized Agents**: High-efficiency workflows for specific domains (Academic Papers, News, Translation).
-    -   **Generic Agents**: Dynamic, on-the-fly agents generated for long-tail tasks using **Progressive Tool Disclosure**.
--   **Brain-Muscle Decoupling**: AI logic (Python) is strictly isolated from tool execution (MCP Server). Tools can be written in any language supported by MCP.
--   **Prompts-as-Code**: All system instructions and personas are stored in `.kuugen/` as Markdown files, enabling version control and hot-reloading of LLM behavior without code changes.
+-   **Ray-Powered Parallel DAG Scheduling**: Complex user queries are analyzed and decomposed into a Directed Acyclic Graph (DAG) of dependent/independent tasks (`depends_on`). Ready tasks execute concurrently across a Ray worker cluster via a hybrid scheduler that dynamically polls Ray `ObjectRef`s and native `asyncio.Task`s using `ray.wait` and `asyncio.wait(FIRST_COMPLETED)`, preventing deadlocks.
+-   **Real-Time Step Tracking & Event Streaming**: Fine-grained execution stages (`memory_retrieval`, `planning`, `plan_ready`, `executing_parallel`, `executing_single`, `task_completed`, `finalizing`, `finished`) and individual step transitions (`pending`, `running`, `completed`, `failed`) are broadcast via WebSocket in real time for live UI visualization.
+-   **Eager Background Warm-Up & Sub-Second Startup**: During the FastAPI lifespan startup, actors are warmed up in a non-blocking background task. Combined with lazy module importing and LLM instance caching in `AgentFactory` and `ModelFactory`, the API gateway achieves sub-second cold starts without latency spikes on initial requests.
+-   **Brain-Muscle Decoupling via Ray Tool Actor**: AI agent workflows (LlamaIndex) are isolated from physical tool execution via `ToolManagerActor` and `RayToolManagerProxy`. The tool server runs as an independent FastMCP process over stdio, eliminating Python GIL bottlenecks and cross-process object serialization issues.
+-   **Dual-Track Routing & Progressive Tool Disclosure**: 
+    -   **Specialized Agents**: High-efficiency, multi-step workflows tuned for specific domains (`SearchPaperAgent`, `NewsAgent`, `PDFTranslatorAgent`, `ChatAgent`).
+    -   **Generic Agents**: Dynamic runtime agents instantiated on-the-fly for custom tasks, discovering tool definitions progressively through categorized skill schemas (`web_scraping`, `system_ops`, `general`) to keep context windows clean.
+-   **Prompts-as-Code & Dynamic Hot-Reloading**: All orchestrator planning templates, agent personas, and skill documentation are maintained in `.kuugen/` as Markdown files. `PromptLoader` reads these dynamically at runtime, allowing prompt tuning and behavioral changes without code modification or service restarts.
+-   **Adaptive Memory Management with LLM Compression**: `MemoryManager` maintains dialogue continuity using a sliding window for recent turns, automatically triggering LLM-based recursive summarization into Traditional Chinese when context boundaries are reached.
+-   **Full-Stack Internationalization (i18n) & Automated OpenCC Conversion**: Kuugen UI features instant bilingual switching (`zh-TW` and `en-US`), while the backend integrates OpenCC to guarantee all AI-generated text is delivered in Traditional Chinese.
 
 ---
 
-## 🌟 Core Features
+## Core Features
 
--   **Autonomous Planning**: Uses a high-level LLM planner to break down complex goals into a dependency-aware execution graph.
--   **Capability Discovery**: The system dynamically injects available tools and agents into the state, allowing agents (like ChatAgent) to accurately describe Kuugen's capabilities to the user.
--   **MCP Standardized Tools**: Full support for Model Context Protocol, allowing Kuugen to use any MCP-compliant tool server.
--   **Progressive Tool Disclosure**: Instead of overloading the context with all tools, agents dynamically request "Skill Categories," keeping the context window clean and reducing hallucinations.
--   **Automatic Traditional Chinese Conversion**: Integrates OpenCC to automatically convert all Simplified Chinese outputs to Traditional Chinese without affecting other languages.
--   **Hybrid LLM Engine**: Seamlessly switch between local vLLM (for privacy/cost) and OpenRouter (for state-of-the-art reasoning).
--   **Instant Output UI**: The React frontend uses a direct-render approach via WebSockets for immediate display of complex responses, including secondary cards and markdown.
+-   **Autonomous DAG Planning**: Uses a high-level LLM planner to break down complex goals into a dependency-aware execution graph with parallel scheduling.
+-   **Real-Time Execution Step Visualizer**: WebSocket-driven live feedback displaying active, completed, and pending steps with collapsible stage accordions.
+-   **Capability Discovery**: Dynamically injects available tools and specialized agents into the state, allowing agents (such as `ChatAgent`) to accurately describe Kuugen's capabilities.
+-   **Standardized MCP & Host OS Control**: Full support for Model Context Protocol (FastMCP) plus secure Windows PowerShell execution from WSL with safety keyword filtering.
+-   **Progressive Tool Disclosure**: Agents dynamically request skill categories on demand, keeping the context window clean and minimizing hallucinations.
+-   **Automatic Traditional Chinese Conversion**: Integrates OpenCC to automatically convert all Simplified Chinese outputs to Traditional Chinese across all agents.
+-   **Adaptive Conversation Memory**: Sliding-window history with intelligent LLM context summarization.
+-   **Hybrid LLM Engine**: Seamlessly switch between distributed local vLLM on Ray, OpenRouter, and OpenAI.
+-   **Bilingual React UI**: Modern React 19 + Vite frontend with live WebSocket streaming, dark/light theme switching, and GitHub Flavored Markdown rendering.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 Agents/
-├── .kuugen/                # Intelligence Layer (Markdown Prompts)
-│   ├── agents/             # Personas for Orchestrator and Specialized Agents
-│   └── skills/             # Skill catalogs and usage constraints
+├── .kuugen/                    # Intelligence Layer (Prompts-as-Code)
+│   ├── agents/                 # Personas for Orchestrator and Specialized Agents
+│   │   ├── chat_agent.md
+│   │   ├── generic_agent_decision.md
+│   │   ├── generic_agent_summary.md
+│   │   ├── news_agent.md
+│   │   └── orchestrator.md
+│   └── skills/                 # Skill catalogs & category definitions
+│       ├── catalog.md
+│       ├── system_ops.md
+│       └── web_scraping.md
 │
-├── agents/                 # Implementation Layer (Workflows)
-│   ├── searchpaper_agent.py# Academic paper search (OpenAlex/Semantic Scholar)
-│   ├── news_agent.py       # Real-time news analysis & reporting
-│   ├── translator_agent.py # High-precision PDF translation workflow
-│   ├── chat_agent.py       # Conversational and capability-aware agent
-│   └── generic_agent.py    # Dynamic agent for custom tasks
+├── agents/                     # Implementation Layer (LlamaIndex Workflows)
+│   ├── chat_agent.py           # Conversational & capability-aware agent
+│   ├── generic_agent.py        # Dynamic agent with progressive tool disclosure
+│   ├── news_agent.py           # Real-time news aggregation, scraping & analysis
+│   ├── searchpaper_agent.py    # Academic paper search & ranking (OpenAlex / ArXiv)
+│   └── translator_agent.py     # High-precision chunked PDF translation workflow
 │
-├── core/                   # Kernel Layer
-│   ├── orchestrator.py     # Parallel task scheduler, pre-warms actors, handles text conversion
-│   ├── ray_manager.py      # Ray Actor definitions & Proxy logic
-│   ├── tool_manager.py     # Skill category & tool registry
-│   ├── mcp_client.py       # MCP protocol implementation
-│   ├── state.py            # Agent state, including capability discovery
-│   ├── utils.py            # Utility functions (e.g., OpenCC Chinese Converter)
-│   └── memory.py           # Context-aware conversation memory
+├── core/                       # Kernel & Infrastructure Layer
+│   ├── mcp_client.py           # FastMCP client implementation (stdio communication)
+│   ├── memory.py               # Sliding-window context memory & LLM auto-compression
+│   ├── orchestrator.py         # Dynamic DAG planner, parallel task scheduler & event streamer
+│   ├── prompt_loader.py        # Prompts-as-code loader (.kuugen Markdown reader)
+│   ├── ray_manager.py          # Ray Actor definitions, tool proxy & state merger
+│   ├── registry.py             # Node registry for specialized agent/tool discovery
+│   ├── state.py                # Capability-aware agent state & task data models
+│   ├── tool_manager.py         # Multi-adapter tool registry (SkillTool, CLITool, MCPTool)
+│   └── utils.py                # Utilities (OpenCC Simplified-to-Traditional converter)
 │
-├── factorys/               # Abstraction Layer
-│   ├── agent_factory.py    # Factory for instantiating Ray Actors/Agents
-│   └── model_factory.py    # Unified interface for LLM providers
+├── factorys/                   # Abstraction & Factory Layer
+│   ├── agent_factory.py        # Agent creation, dependency injection & lazy module loading
+│   └── model_factory.py        # Unified LLM provider interface (vLLM, OpenRouter, OpenAI)
 │
-├── kuugen-ui/              # Frontend (React + Vite + Markdown Support)
+├── kuugen-ui/                  # Frontend Layer (React 19 + Vite + Modern UI)
+│   ├── src/
+│   │   ├── context/            # LanguageContext for dynamic i18n
+│   │   ├── hooks/              # useTranslation custom hook
+│   │   ├── locales/            # Translation resources (en-US, zh-TW)
+│   │   ├── App.jsx             # Main chat window, step tracker & WebSocket client
+│   │   ├── App.css             # Responsive theme styling (Dark / Light)
+│   │   └── main.jsx            # Application entry point & context provider wrapper
+│   └── package.json
 │
-├── server.py               # Main API Gateway (FastAPI) & Lifespan Manager
-├── tools_server.py         # MCP Tool Server (Muscle)
-└── config.py               # Environment & System configuration
+├── server.py                   # FastAPI Gateway, lifespan manager & WebSocket endpoint
+├── tools_server.py             # FastMCP Tool Server (The Muscle - scraper, CLI, PDF)
+├── config.py                   # Environment configuration & provider settings
+├── vllm_ray_launcher.py        # Local GPU vLLM OpenAI server wrapped in Ray Actor
+├── start_vllm.py               # Standalone vLLM server launch script
+└── download_model.py           # HuggingFace model downloader utility
 ```
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Prerequisites
 - Python 3.10+
@@ -160,7 +214,7 @@ npm run dev
 
 ---
 
-## 🛠 Extension Guide
+## Extension Guide
 
 ### Adding a New Skill
 1.  Add a new tool function in `tools_server.py` using `@mcp.tool()`.
@@ -174,5 +228,5 @@ npm run dev
 
 ---
 
-## 📄 License
+## License
 MIT License. Created by Ching-Yang Tien.

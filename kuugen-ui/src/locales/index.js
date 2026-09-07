@@ -2,8 +2,8 @@ import zhTW from './zh-TW.json';
 import enUS from './en-US.json';
 
 export const SUPPORTED_LANGUAGES = [
-  { code: 'zh-TW', label: '繁體中文', icon: '🇹🇼' },
-  { code: 'en-US', label: 'English', icon: '🇺🇸' }
+  { code: 'zh-TW', label: '繁體中文' },
+  { code: 'en-US', label: 'English' }
 ];
 
 export const translations = {

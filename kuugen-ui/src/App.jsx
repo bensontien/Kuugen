@@ -44,7 +44,7 @@ function App() {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('🔌 WebSocket Connected');
+      console.log('[WebSocket] Connected');
       setIsConnected(true);
     };
 
@@ -80,14 +80,14 @@ function App() {
         } 
         else if (data.type === 'error') {
           const filteredMessages = prevMessages.filter(msg => msg.type !== 'status');
-          return { ...session, messages: [...filteredMessages, { role: 'system', type: 'error', content: `❌ Error: ${data.content}` }] };
+          return { ...session, messages: [...filteredMessages, { role: 'system', type: 'error', content: `Error: ${data.content}` }] };
         }
         return session;
       }));
     };
 
     ws.onclose = () => {
-      console.log('🔌 WebSocket Disconnected');
+      console.log('[WebSocket] Disconnected');
       setIsConnected(false);
     };
 
@@ -141,7 +141,9 @@ function App() {
       <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
         <div className="sidebar-top">
           <div className="app-brand">
-            <span className="app-logo">🤖</span>
+            <span className="app-logo">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
+            </span>
             <h1>Kuugen</h1>
           </div>
           <button className="new-chat-btn" onClick={handleNewChat}>{t('common.newChat')}</button>
@@ -154,7 +156,9 @@ function App() {
               className={`history-item ${session.id === activeSessionId ? 'active' : ''}`}
               onClick={() => setActiveSessionId(session.id)}
             >
-              <span className="history-icon">💬</span>
+              <span className="history-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              </span>
               <span className="history-title">{session.title}</span>
             </div>
           ))}
@@ -162,7 +166,9 @@ function App() {
         
         <div className="sidebar-bottom">
           <div className="language-selector">
-            <span className="lang-icon">🌐</span>
+            <span className="lang-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            </span>
             <select 
               value={currentLang} 
               onChange={(e) => setLanguage(e.target.value)}
@@ -171,7 +177,7 @@ function App() {
             >
               {languages.map(lang => (
                 <option key={lang.code} value={lang.code}>
-                  {lang.icon} {lang.label}
+                  {lang.label}
                 </option>
               ))}
             </select>
@@ -239,7 +245,9 @@ function App() {
                       {msg.data.execution_steps && msg.data.execution_steps.length > 0 && (
                         <details className="execution-steps-details">
                           <summary className="details-summary-btn">
-                            <span className="details-icon">⚡</span>
+                            <span className="details-icon">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                            </span>
                             <span>
                               {t('step.executionStages')} ({t('step.stepsCompleted', {
                                 completed: msg.data.execution_steps.filter(s => s.status === 'completed').length,

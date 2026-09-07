@@ -4,18 +4,18 @@
     "defaultSessionTitle": "New Chat",
     "send": "Send",
     "placeholder": "Message Kuugen...",
-    "greeting": "Hello! I am Kuugen 👋",
+    "greeting": "Hello! I am Kuugen.",
     "greetingSub": "How can I help you today?",
-    "toggleThemeLight": "☀️ Light Mode",
-    "toggleThemeDark": "🌙 Dark Mode",
+    "toggleThemeLight": "Light Mode",
+    "toggleThemeDark": "Dark Mode",
     "connected": "Connected",
     "disconnected": "Disconnected"
   },
   "cards": {
-    "newsReport": "📰 News Trend Report",
-    "paperSummary": "📄 Paper Summary Generated",
+    "newsReport": "News Trend Report",
+    "paperSummary": "Paper Summary Generated",
     "summaryLocation": "Saved at:",
-    "translationComplete": "📚 Translation Complete",
+    "translationComplete": "Translation Complete",
     "openTranslation": "Open Translation:"
   },
   "step": {
@@ -26,15 +26,15 @@
     "stepsCompleted": "{completed}/{total} steps completed"
   },
   "status": {
-    "memory_retrieval": "🧠 Retrieving conversation memory and context...",
-    "planning": "🔍 Analyzing requirements and planning execution steps...",
-    "plan_ready": "📋 Plan generated ({total} tasks total), preparing parallel execution...",
+    "memory_retrieval": "Retrieving conversation memory and context...",
+    "planning": "Analyzing requirements and planning execution steps...",
+    "plan_ready": "Plan generated ({total} tasks total), preparing parallel execution...",
     "plan_empty": "Planning finished, no further tasks needed.",
-    "executing_single": "⚡ Executing [{current}/{total}]: {task} ({node})...",
-    "executing_parallel": "⚡ Executing in parallel ({count} tasks): {tasks}...",
-    "task_completed": "✅ Completed [{current}/{total}]: {task}",
-    "task_failed": "❌ Task failed [{tid}]: {error}",
-    "finalizing": "📝 Tasks completed, finalizing response...",
-    "finished": "✨ Processing finished, rendering response..."
+    "executing_single": "Executing [{current}/{total}]: {task} ({node})...",
+    "executing_parallel": "Executing in parallel ({count} tasks): {tasks}...",
+    "task_completed": "Completed [{current}/{total}]: {task}",
+    "task_failed": "Task failed [{tid}]: {error}",
+    "finalizing": "Tasks completed, finalizing response...",
+    "finished": "Processing finished, rendering response..."
   }
 }

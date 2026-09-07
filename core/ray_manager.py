@@ -3,9 +3,8 @@ import inspect
 import asyncio
 from typing import Dict, Any, List, Optional
 from core.state import AgentState, Task
-from factorys.agent_factory import AgentFactory
 
-@ray.remote
+@ray.remote(num_cpus=0)
 class ToolManagerActor:
     """
     Centralized tool management Actor.
@@ -65,7 +64,7 @@ class ToolManagerActor:
         print("[ToolManagerActor] Stopping MCP Client...")
         await self.mcp_client.stop()
 
-@ray.remote
+@ray.remote(num_cpus=0)
 class FunctionActor:
     """
     A lightweight Actor wrapper for plain callable functions.
@@ -91,7 +90,7 @@ class FunctionActor:
             state.is_aborted = True
             return state
 
-@ray.remote
+@ray.remote(num_cpus=0)
 class AgentActor:
     def __init__(self, agent_type: str, llm_type: str = 'external', tool_manager_actor=None):
         self.agent_type = agent_type
@@ -105,6 +104,7 @@ class AgentActor:
         if self.agent is None:
             print(f"[Ray Actor: {self.agent_type}] Initializing Agent instance...")
             if self._factory is None:
+                from factorys.agent_factory import AgentFactory
                 self._factory = AgentFactory()
             
             # Inject a Proxy that can call the Ray Actor if the Agent needs tools
@@ -132,7 +132,7 @@ class AgentActor:
             state.is_aborted = True
             return state
 
-@ray.remote
+@ray.remote(num_cpus=0)
 class GenericAgentActor:
     def __init__(self, llm_type: str = 'external', tool_manager_actor=None):
         self.llm_type = llm_type

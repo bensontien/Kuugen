@@ -26,3 +26,6 @@ numpy==2.0.0
 vllm
 huggingface-hub
 opencc-python-reimplemented
+
+# Distributed & Parallel Execution
+ray[default]

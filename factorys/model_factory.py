@@ -1,6 +1,4 @@
 from typing import Dict
-from llama_index.llms.openai_like import OpenAILike
-from llama_index.llms.openai import OpenAI
 
 class ModelFactory:
     @staticmethod
@@ -11,6 +9,7 @@ class ModelFactory:
         provider = config.get("provider", "vllm")
         
         if provider == "vllm" or provider == "local":
+            from llama_index.llms.openai_like import OpenAILike
             return OpenAILike(
                 model=config["model_name"],
                 api_base=config["api_base"],
@@ -20,6 +19,7 @@ class ModelFactory:
             )
             
         elif provider == "openai":
+            from llama_index.llms.openai import OpenAI
             return OpenAI(
                 model=config["model_name"],
                 api_key=config["api_key"],
@@ -28,6 +28,7 @@ class ModelFactory:
             )
             
         elif provider == "openrouter":
+            from llama_index.llms.openai_like import OpenAILike
             return OpenAILike(
                 model=config["model_name"],
                 api_base=config.get("api_base", "https://openrouter.ai/api/v1"),

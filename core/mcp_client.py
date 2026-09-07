@@ -1,3 +1,4 @@
+import sys
 import asyncio
 from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters
@@ -12,7 +13,7 @@ class KuugenMCPClient:
     async def start(self):
         """Establish standard I/O connection with the MCP server and initialize the session"""
         server_params = StdioServerParameters(
-            command="python",
+            command=sys.executable,
             args=[self.server_script_path]
         )
 
@@ -35,4 +36,8 @@ class KuugenMCPClient:
 
     async def stop(self):
         """Close the MCP connection"""
-        await self.exit_stack.aclose()
+        try:
+            await self.exit_stack.aclose()
+        except Exception:
+            # AnyIO cancel scope can raise RuntimeError if closed from a different asyncio task in Ray Actor
+            pass

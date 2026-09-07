@@ -1,28 +1,38 @@
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 from config import LLM_LOCAL_CONFIG, LLM_OPENROUTER_CONFIG, LLM_TRANSLATOR_CONFIG
 from factorys.model_factory import ModelFactory
-from agents.searchpaper_agent import SearchPaperAgent
-from agents.translator_agent import PDFTranslatorAgent
-from agents.news_agent import NewsAgent
-from agents.chat_agent import ChatAgent
 
 class AgentFactory:
     """
     Universal Agent Factory.
     Manages creation, dependency injection, and instance caching for all agents.
+    Uses lazy loading to accelerate process startup and minimize memory/import overhead.
     """
     
     def __init__(self):
-        # Initialize available LLM instances
-        self.local_llm = ModelFactory.create_llm(LLM_LOCAL_CONFIG)
-        self.translator_llm = ModelFactory.create_llm(LLM_TRANSLATOR_CONFIG)
-        self.external_llm = ModelFactory.create_llm(LLM_OPENROUTER_CONFIG)
-        
-        # Set global default timeout
+        self._llm_cache: Dict[str, Any] = {}
         self.default_timeout = LLM_LOCAL_CONFIG.get("timeout", 1200)
 
+    @property
+    def local_llm(self) -> Any:
+        if 'local' not in self._llm_cache:
+            self._llm_cache['local'] = ModelFactory.create_llm(LLM_LOCAL_CONFIG)
+        return self._llm_cache['local']
+
+    @property
+    def translator_llm(self) -> Any:
+        if 'translator' not in self._llm_cache:
+            self._llm_cache['translator'] = ModelFactory.create_llm(LLM_TRANSLATOR_CONFIG)
+        return self._llm_cache['translator']
+
+    @property
+    def external_llm(self) -> Any:
+        if 'external' not in self._llm_cache:
+            self._llm_cache['external'] = ModelFactory.create_llm(LLM_OPENROUTER_CONFIG)
+        return self._llm_cache['external']
+
     def get_llm(self, llm_type: str = 'local') -> Any:
-        """Retrieve the LLM instance of the specified type."""
+        """Retrieve the LLM instance of the specified type on demand."""
         if llm_type == 'local':
             return self.local_llm
         elif llm_type == 'translator':
@@ -42,8 +52,9 @@ class AgentFactory:
         # 3. Calculate the final timeout
         timeout = kwargs.pop('timeout', self.default_timeout)
 
-        # 4. Instantiate the Agent
+        # 4. Instantiate the Agent with on-demand lazy imports
         if agent_type == 'SearchPaperAgent':
+            from agents.searchpaper_agent import SearchPaperAgent
             return SearchPaperAgent(
                 llm=target_llm, 
                 timeout=timeout,
@@ -52,6 +63,7 @@ class AgentFactory:
             )
             
         elif agent_type == 'PDFTranslatorAgent':
+            from agents.translator_agent import PDFTranslatorAgent
             trans_timeout = timeout if timeout > 1200 else 3600
             actual_llm = target_llm if llm_type != 'local' else self.get_llm('translator')
             
@@ -63,6 +75,7 @@ class AgentFactory:
             )
             
         elif agent_type == 'NewsAgent':
+            from agents.news_agent import NewsAgent
             return NewsAgent(
                 llm=target_llm,
                 tool_manager=tool_mgr,
@@ -72,6 +85,7 @@ class AgentFactory:
             )
         
         elif agent_type == 'ChatAgent':
+            from agents.chat_agent import ChatAgent
             return ChatAgent(
                 llm=target_llm, 
                 tool_manager=tool_mgr,

@@ -1,4 +1,5 @@
 import json
+import asyncio
 import ray
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -43,12 +44,13 @@ async def lifespan(app: FastAPI):
     llm_type = 'external' 
     
     # --- Startup Phase ---
-    print("[Server] Initiating startup sequence...")
+    import time
+    t_start = time.perf_counter()
+    print("[Server] Initiating Kuugen 2.0 startup sequence...")
 
     # 0. Initialize Ray (Required for Parallel Orchestrator)
     if not ray.is_initialized():
         print("[Server] Initializing Ray Cluster...")
-        # Optimization: disable dashboard and metrics to reduce errors
         ray.init(
             ignore_reinit_error=True,
             include_dashboard=False,
@@ -59,23 +61,16 @@ async def lifespan(app: FastAPI):
             logging_level="warning"
         )
     
-    # 1. Initialize ToolManager as a Ray Actor
+    # 1. Initialize ToolManager as a Ray Actor (FIFO mailbox guarantees initialize runs before any tool request)
     print("[Server] Starting ToolManagerActor...")
     tool_manager_actor = ToolManagerActor.remote(mcp_script_path="tools_server.py")
-    await tool_manager_actor.initialize.remote()
+    tool_manager_actor.initialize.remote()
     tool_manager_proxy = RayToolManagerProxy(tool_manager_actor)
             
-    # 2. Initialize Factory and LLMs
+    # 2. Initialize Factory and Registry
     factory = AgentFactory() 
-    orchestrator_llm = factory.get_llm(llm_type) 
     
-    # 3. Inject dependencies into Agents
-    search_agent = factory.get_agent('SearchPaperAgent', llm_type=llm_type)
-    translator_agent = factory.get_agent('PDFTranslatorAgent', timeout=3600, llm_type='translator')
-    news_agent = factory.get_agent('NewsAgent', llm_type=llm_type, tool_manager=tool_manager_proxy) 
-    chat_agent = factory.get_agent('ChatAgent', llm_type=llm_type) 
-    
-    # 4. Create wrapper for standalone tools
+    # 3. Create wrapper for standalone tools
     async def download_pdf_wrapper(state):
         url = state.top_paper.url 
         filename = state.top_paper.title
@@ -83,31 +78,31 @@ async def lifespan(app: FastAPI):
         state.chat_reply = result
         return state
 
-    # 5. Build the Registry
+    # 4. Build the Registry (Lazy runners for fallback mode, avoids importing unused agents in main process)
     registry = NodeRegistry()
-    registry.register("SearchPaperAgent", "Used for searching academic papers...", search_agent.run)
+    registry.register("SearchPaperAgent", "Used for searching academic papers...", lambda state: factory.get_agent('SearchPaperAgent', llm_type=llm_type).run(state))
     registry.register("DownloadTool", "Used to attempt downloading PDF files.", download_pdf_wrapper)
-    registry.register("TranslatorAgent", "Translate PDF files...", translator_agent.run)
+    registry.register("TranslatorAgent", "Translate PDF files...", lambda state: factory.get_agent('PDFTranslatorAgent', timeout=3600, llm_type='translator').run(state))
     registry.register(
         "NewsAgent", 
         "Use ONLY when the user wants to SEARCH for general news, trends, or updates on a broad topic. DO NOT use this agent if the user provides a specific URL to read or scrape.", 
-        news_agent.run
+        lambda state: factory.get_agent('NewsAgent', llm_type=llm_type, tool_manager=tool_manager_proxy).run(state)
     )
-    registry.register("ChatAgent", "General daily conversation...", chat_agent.run)
+    registry.register("ChatAgent", "General daily conversation...", lambda state: factory.get_agent('ChatAgent', llm_type=llm_type).run(state))
     
-    # 6. Initialize the Orchestrator
+    # 5. Initialize the Orchestrator with lazy LLM resolver
     kuugen_orchestrator = KuugenOrchestrator(
-        llm=orchestrator_llm, 
+        llm=lambda: factory.get_llm(llm_type), 
         registry=registry, 
         tool_manager=tool_manager_proxy,
         tool_manager_actor=tool_manager_actor
     )
     
-    # --- Warm up Ray Actors ---
-    print("[Server] Warming up parallel agents...")
-    await kuugen_orchestrator.warm_up()
+    # --- Warm up Ray Actors (Non-blocking background task) ---
+    print("[Server] Starting parallel agents warm-up in background...")
+    asyncio.create_task(kuugen_orchestrator.warm_up())
     
-    print("[Server] Kuugen 2.0 API startup complete with Ray Parallel Support!")
+    print(f"[Server] Kuugen 2.0 API startup complete in {time.perf_counter() - t_start:.2f}s with Ray Parallel Support!")
     
     # --- Yield control back to FastAPI ---
     yield
@@ -115,7 +110,10 @@ async def lifespan(app: FastAPI):
     # --- Shutdown Phase ---
     print("[Server] Initiating shutdown sequence...")
     if tool_manager_actor:
-        await tool_manager_actor.stop.remote()
+        try:
+            await tool_manager_actor.stop.remote()
+        except Exception as e:
+            print(f"[Server] Note during ToolManagerActor stop: {e}")
     if ray.is_initialized():
         ray.shutdown()
     print("[Server] Shutdown complete.")
@@ -163,22 +161,38 @@ async def websocket_endpoint(websocket: WebSocket):
                 
             current_memory = get_memory(session_id)
             
-            await websocket.send_json({
-                "type": "status", 
-                "content": "Thinking and planning (Ray Enabled)...",
-                "session_id": session_id
-            })
+            async def send_status(content: str, steps = None, stage: str = None, stage_params: dict = None):
+                payload = {
+                    "type": "status", 
+                    "content": content,
+                    "session_id": session_id
+                }
+                if steps is not None:
+                    payload["steps"] = steps
+                if stage is not None:
+                    payload["stage"] = stage
+                if stage_params is not None:
+                    payload["stage_params"] = stage_params
+                await websocket.send_json(payload)
+            
+            initial_steps = [
+                {"id": "memory", "title": "Retrieve memory and context", "status": "running"},
+                {"id": "plan", "title": "Analyze requirements and plan tasks", "status": "pending"}
+            ]
+            await send_status("Retrieving conversation memory and context...", initial_steps, stage="memory_retrieval", stage_params={})
             
             current_memory.add_turn("User", user_message)
             context_str = await current_memory.get_context_and_compress()
             
-            await websocket.send_json({
-                "type": "status", 
-                "content": "Executing parallel tasks via Ray...",
-                "session_id": session_id
-            })
+            initial_steps[0]["status"] = "completed"
+            initial_steps[1]["status"] = "running"
+            await send_status("Analyzing requirements and planning execution steps...", initial_steps, stage="planning", stage_params={})
             
-            final_state = await kuugen_orchestrator.execute_task(user_message, memory_context=context_str)
+            final_state = await kuugen_orchestrator.execute_task(
+                user_message, 
+                memory_context=context_str,
+                status_callback=send_status
+            )
             
             response_payload = {
                 "type": "result",
@@ -188,6 +202,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "search_report_file": final_state.search_report_file,
                 "translated_file": final_state.final_translated_file,
                 "current_phase": final_state.current_phase,
+                "execution_steps": getattr(final_state, "execution_steps", []),
                 "session_id": session_id
             }
             await websocket.send_json(response_payload)

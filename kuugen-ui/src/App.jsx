@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'; // Import GFM plugin to support tables and advanced syntax
+import { useTranslation } from './hooks/useTranslation';
 import './App.css';
 
 function App() {
-  const [sessions, setSessions] = useState([
-    { id: Date.now().toString(), title: "新對話", messages: [] }
+  const { currentLang, setLanguage, languages, t, translateStepTitle, translateStatus } = useTranslation();
+
+  const [sessions, setSessions] = useState(() => [
+    { id: 'session-' + Date.now().toString(), title: t('common.defaultSessionTitle'), messages: [] }
   ]);
   
   const [activeSessionId, setActiveSessionId] = useState(sessions[0].id);
@@ -58,10 +61,18 @@ function App() {
 
         if (data.type === 'status') {
           const lastMsg = prevMessages[prevMessages.length - 1];
+          const newStatusMsg = {
+            role: 'system',
+            type: 'status',
+            content: data.content,
+            stage: data.stage,
+            stage_params: data.stage_params,
+            steps: data.steps || (lastMsg?.type === 'status' ? lastMsg.steps : [])
+          };
           if (lastMsg && lastMsg.type === 'status') {
-             return { ...session, messages: [...prevMessages.slice(0, -1), { role: 'system', type: 'status', content: data.content }] };
+             return { ...session, messages: [...prevMessages.slice(0, -1), newStatusMsg] };
           }
-          return { ...session, messages: [...prevMessages, { role: 'system', type: 'status', content: data.content }] };
+          return { ...session, messages: [...prevMessages, newStatusMsg] };
         } 
         else if (data.type === 'result') {
           const filteredMessages = prevMessages.filter(msg => msg.type !== 'status');
@@ -116,8 +127,8 @@ function App() {
   };
 
   const handleNewChat = () => {
-    const newSessionId = Date.now().toString();
-    setSessions(prev => [{ id: newSessionId, title: "新對話", messages: [] }, ...prev]);
+    const newSessionId = 'session-' + Date.now().toString();
+    setSessions(prev => [{ id: newSessionId, title: t('common.defaultSessionTitle'), messages: [] }, ...prev]);
     setActiveSessionId(newSessionId); 
   };
 
@@ -133,7 +144,7 @@ function App() {
             <span className="app-logo">🤖</span>
             <h1>Kuugen</h1>
           </div>
-          <button className="new-chat-btn" onClick={handleNewChat}>＋ New Chat</button>
+          <button className="new-chat-btn" onClick={handleNewChat}>{t('common.newChat')}</button>
         </div>
 
         <div className="sidebar-history">
@@ -150,8 +161,23 @@ function App() {
         </div>
         
         <div className="sidebar-bottom">
+          <div className="language-selector">
+            <span className="lang-icon">🌐</span>
+            <select 
+              value={currentLang} 
+              onChange={(e) => setLanguage(e.target.value)}
+              className="lang-select"
+              aria-label="Select Language"
+            >
+              {languages.map(lang => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.icon} {lang.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <button onClick={toggleTheme} className="theme-toggle-btn">
-            {theme === 'light' ? '🌙 切換暗色' : '☀️ 切換亮色'}
+            {theme === 'light' ? t('common.toggleThemeDark') : t('common.toggleThemeLight')}
           </button>
         </div>
       </aside>
@@ -166,15 +192,18 @@ function App() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
             <h2>Kuugen</h2>
-            <span className={isConnected ? "status-dot connected" : "status-dot disconnected"}></span>
+            <span 
+              className={isConnected ? "status-dot connected" : "status-dot disconnected"}
+              title={isConnected ? t('common.connected') : t('common.disconnected')}
+            ></span>
           </div>
         </header>
 
         <div className="chat-window">
           {activeMessages.length === 0 ? (
             <div className="empty-state">
-              <h3>哈囉！我是 Kuugen 👋</h3>
-              <p>有什麼我可以幫忙的嗎？</p>
+              <h3>{t('common.greeting')}</h3>
+              <p>{t('common.greetingSub')}</p>
             </div>
           ) : (
             activeMessages.map((msg, index) => (
@@ -184,21 +213,60 @@ function App() {
                   {msg.role === 'user' && <p>{msg.content}</p>}
 
                   {msg.role === 'system' && (
-                    <div className="system-status-indicator">
-                      <span className="spinner"></span> 
-                      <p className="system-text">{msg.content}</p>
+                    <div className="system-status-box">
+                      <div className="system-status-header">
+                        <span className="spinner"></span> 
+                        <p className="system-text">{translateStatus(msg)}</p>
+                      </div>
+                      {msg.steps && msg.steps.length > 0 && (
+                        <div className="system-steps-list">
+                          {msg.steps.map((step, sIdx) => (
+                            <div key={step.id || sIdx} className={`system-step-item ${step.status}`}>
+                              <span className="step-icon">
+                                {step.status === 'completed' ? '✓' : step.status === 'running' ? '●' : step.status === 'failed' ? '✕' : '○'}
+                              </span>
+                              <span className="step-title">{translateStepTitle(step.id, step.title)}</span>
+                              {step.node && <span className="step-node-tag">{step.node}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {msg.role === 'assistant' && msg.type === 'result' && (
                     <div className="result-content">
+                      {msg.data.execution_steps && msg.data.execution_steps.length > 0 && (
+                        <details className="execution-steps-details">
+                          <summary className="details-summary-btn">
+                            <span className="details-icon">⚡</span>
+                            <span>
+                              {t('step.executionStages')} ({t('step.stepsCompleted', {
+                                completed: msg.data.execution_steps.filter(s => s.status === 'completed').length,
+                                total: msg.data.execution_steps.length
+                              })})
+                            </span>
+                          </summary>
+                          <div className="system-steps-list">
+                            {msg.data.execution_steps.map((step, sIdx) => (
+                              <div key={step.id || sIdx} className={`system-step-item ${step.status}`}>
+                                <span className="step-icon">
+                                  {step.status === 'completed' ? '✓' : step.status === 'failed' ? '✕' : '○'}
+                                </span>
+                                <span className="step-title">{translateStepTitle(step.id, step.title)}</span>
+                                {step.node && <span className="step-node-tag">{step.node}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                       
                       {msg.data.reply && (
                         <div className="text-reply markdown-content">
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
-                              a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
+                              a: ({node: _node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
                             }}
                           >
                             {msg.data.reply}
@@ -209,12 +277,12 @@ function App() {
                       <div className="cards-wrapper">
                         {msg.data.news_report && (
                           <div className="card news-card">
-                            <h3>📰 新聞趨勢報告</h3>
+                            <h3>{t('cards.newsReport')}</h3>
                             <div className="markdown-content">
                               <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 components={{
-                                  a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
+                                  a: ({node: _node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
                                 }}
                               >
                                 {msg.data.news_report}
@@ -224,14 +292,14 @@ function App() {
                         )}
                         {msg.data.search_report_file && (
                           <div className="card file-card">
-                            <h3>📄 論文摘要已生成</h3>
-                            <button className="file-path-btn">摘要儲存位置: <code>{msg.data.search_report_file}</code></button>
+                            <h3>{t('cards.paperSummary')}</h3>
+                            <button className="file-path-btn">{t('cards.summaryLocation')} <code>{msg.data.search_report_file}</code></button>
                             {msg.data.search_report_content && (
                               <div className="markdown-content" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
                                 <ReactMarkdown
                                   remarkPlugins={[remarkGfm]}
                                   components={{
-                                    a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
+                                    a: ({node: _node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
                                   }}
                                 >
                                   {msg.data.search_report_content}
@@ -242,8 +310,8 @@ function App() {
                         )}
                         {msg.data.translated_file && (
                           <div className="card file-card success">
-                            <h3>📚 翻譯完成</h3>
-                            <button className="file-path-btn success">打開翻譯: <code>{msg.data.translated_file}</code></button>
+                            <h3>{t('cards.translationComplete')}</h3>
+                            <button className="file-path-btn success">{t('cards.openTranslation')} <code>{msg.data.translated_file}</code></button>
                           </div>
                         )}
                       </div>
@@ -267,11 +335,11 @@ function App() {
                 e.target.style.height = `${e.target.scrollHeight}px`; 
               }}
               onKeyDown={handleKeyPress}
-              placeholder="輸入指令給 Kuugen..."
+              placeholder={t('common.placeholder')}
               rows={1}
             />
             <button onClick={handleSendMessage} disabled={!isConnected || !inputValue.trim()} className="send-btn">
-              發送
+              {t('common.send')}
             </button>
           </div>
         </footer>

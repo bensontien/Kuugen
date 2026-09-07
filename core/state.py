@@ -50,3 +50,4 @@ class AgentState(BaseModel):
 
     # Scratchpad mechanism to store execution results of each step during multi-agent collaboration
     step_results: dict[int, str] = Field(default_factory=dict)
+    execution_steps: List[dict] = Field(default_factory=list)

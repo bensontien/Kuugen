@@ -197,6 +197,47 @@ body {
   margin-top: auto;
   border-top: 1px solid var(--border-color);
   padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.language-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.language-selector:focus-within {
+  border-color: var(--primary-color);
+}
+
+.lang-icon {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.lang-select {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-sidebar);
+  font-size: 0.85rem;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  width: 100%;
+}
+
+.lang-select option {
+  background-color: var(--bg-card);
+  color: var(--text-main);
 }
 
 .theme-toggle-btn {
@@ -498,7 +539,7 @@ body {
 }
 
 /* ==========================================
-   System Status Indicator
+   System Status Indicator & Step Progress
    ========================================== */
 .system-status-indicator {
   display: flex;
@@ -507,13 +548,33 @@ body {
   padding: 0.5rem 0;
 }
 
+.system-status-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  max-width: 520px;
+  margin: 0.5rem 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.system-status-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .spinner {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   border: 2px solid var(--border-color);
   border-top-color: var(--primary-color);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 @keyframes spin {
@@ -521,10 +582,116 @@ body {
 }
 
 .system-text {
-  color: var(--text-system);
-  font-size: 0.85rem;
+  color: var(--text-main);
+  font-size: 0.88rem;
   font-weight: 500;
   margin: 0;
+  line-height: 1.4;
+}
+
+.system-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border-color);
+}
+
+.system-step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-system);
+}
+
+.system-step-item.completed {
+  color: #10b981;
+}
+
+.system-step-item.running {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.system-step-item.pending {
+  color: var(--text-system);
+  opacity: 0.65;
+}
+
+.system-step-item.failed {
+  color: #ef4444;
+}
+
+.step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.system-step-item.running .step-icon {
+  animation: stepPulse 1s infinite alternate;
+}
+
+@keyframes stepPulse {
+  from { transform: scale(0.9); opacity: 0.7; }
+  to { transform: scale(1.2); opacity: 1; }
+}
+
+.step-title {
+  flex: 1;
+}
+
+.step-node-tag {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: var(--border-color);
+  color: var(--text-system);
+  font-family: monospace;
+}
+
+/* Execution Steps Accordion in Assistant Message */
+.execution-steps-details {
+  margin-bottom: 0.85rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.execution-steps-details summary {
+  cursor: pointer;
+  color: var(--text-system);
+  user-select: none;
+  font-weight: 500;
+  outline: none;
+}
+
+.execution-steps-details summary:hover {
+  color: var(--primary-color);
+}
+
+.details-summary-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.details-icon {
+  font-size: 0.9rem;
+}
+
+.execution-steps-details .system-steps-list {
+  margin-top: 0.6rem;
+  margin-bottom: 0.2rem;
 }
 
 

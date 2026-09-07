@@ -228,7 +228,7 @@ class SearchPaperAgent(Workflow):
         state = ev.state
         if not ev.scored_papers:
             state.chat_reply = "No papers found."; return StopEvent(result=state)
-        filename = f"Papers/DeepReview_{datetime.date.today()}.txt"
+        filename = f"Papers/DeepReview_{datetime.date.today()}.md"
         os.makedirs("Papers", exist_ok=True)
         try:
             with open(filename, "w", encoding="utf-8") as f: f.write(ev.final_report)

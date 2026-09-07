@@ -1,7 +1,7 @@
 import os
 
 class PromptLoader:
-    BASE_DIR = ".sophie"
+    BASE_DIR = ".kuugen"
 
     @classmethod
     def load_agent_prompt(cls, agent_name: str) -> str:

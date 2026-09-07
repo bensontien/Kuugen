@@ -11,8 +11,8 @@ venv/
 
 # Project specific
 Papers/
-sophie-ui/node_modules/
-sophie-ui/dist/
+kuugen-ui/node_modules/
+kuugen-ui/dist/
 *.log
 
 # IDEs

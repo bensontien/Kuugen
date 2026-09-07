@@ -13,9 +13,9 @@ class ToolManagerActor:
     """
     def __init__(self, mcp_script_path: str = "tools_server.py"):
         from core.tool_manager import ToolManager
-        from core.mcp_client import SophieMCPClient
+        from core.mcp_client import KuugenMCPClient
         self.tool_manager = ToolManager()
-        self.mcp_client = SophieMCPClient(server_script_path=mcp_script_path)
+        self.mcp_client = KuugenMCPClient(server_script_path=mcp_script_path)
 
     async def initialize(self):
         """Async initialization for MCP client and tool registration"""

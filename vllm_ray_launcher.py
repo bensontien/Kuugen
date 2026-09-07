@@ -72,7 +72,7 @@ def main():
     model_name = "qwen2.5-7b"
     
     # 3. Create and start Ray Actor
-    # Define as a named actor for access by other Sophie components
+    # Define as a named actor for access by other Kuugen components
     try:
         vllm_actor = VLLMRayActor.options(
             name="vllm_service", 

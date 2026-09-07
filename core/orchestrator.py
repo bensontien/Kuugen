@@ -7,7 +7,7 @@ from core.state import AgentState, Plan, Task
 from core.prompt_loader import PromptLoader 
 from core.ray_manager import AgentActor, GenericAgentActor, ToolManagerActor, merge_states
 
-class SophieOrchestrator:
+class KuugenOrchestrator:
     def __init__(self, llm, registry, tool_manager=None, tool_manager_actor=None):
         self.llm = llm
         self.registry = registry

@@ -8,7 +8,7 @@ from typing import Optional
 
 from factorys.agent_factory import AgentFactory
 from core.registry import NodeRegistry
-from core.orchestrator import SophieOrchestrator
+from core.orchestrator import KuugenOrchestrator
 from core.memory import MemoryManager
 from core.ray_manager import ToolManagerActor, RayToolManagerProxy
 
@@ -29,7 +29,7 @@ class ChatResponse(BaseModel):
 # ==========================================
 # Prepare global variables
 # ==========================================
-sophie_orchestrator = None
+kuugen_orchestrator = None
 session_memories = {} 
 tool_manager_actor = None
 tool_manager_proxy = None
@@ -39,7 +39,7 @@ tool_manager_proxy = None
 # ==========================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global sophie_orchestrator, tool_manager_actor, tool_manager_proxy
+    global kuugen_orchestrator, tool_manager_actor, tool_manager_proxy
     llm_type = 'external' 
     
     # --- Startup Phase ---
@@ -96,7 +96,7 @@ async def lifespan(app: FastAPI):
     registry.register("ChatAgent", "General daily conversation...", chat_agent.run)
     
     # 6. Initialize the Orchestrator
-    sophie_orchestrator = SophieOrchestrator(
+    kuugen_orchestrator = KuugenOrchestrator(
         llm=orchestrator_llm, 
         registry=registry, 
         tool_manager=tool_manager_proxy,
@@ -105,9 +105,9 @@ async def lifespan(app: FastAPI):
     
     # --- Warm up Ray Actors ---
     print("[Server] Warming up parallel agents...")
-    await sophie_orchestrator.warm_up()
+    await kuugen_orchestrator.warm_up()
     
-    print("[Server] Sophie 2.0 API startup complete with Ray Parallel Support!")
+    print("[Server] Kuugen 2.0 API startup complete with Ray Parallel Support!")
     
     # --- Yield control back to FastAPI ---
     yield
@@ -123,7 +123,7 @@ async def lifespan(app: FastAPI):
 # ==========================================
 # Create FastAPI instance
 # ==========================================
-app = FastAPI(title="Sophie 2.0 API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Kuugen 2.0 API", version="1.0.0", lifespan=lifespan)
 
 # Setup CORS 
 app.add_middleware(
@@ -139,7 +139,7 @@ app.add_middleware(
 # ==========================================
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
-    global sophie_orchestrator, session_memories
+    global kuugen_orchestrator, session_memories
     
     await websocket.accept()
     print("[WebSocket] Frontend connected!")
@@ -178,7 +178,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "session_id": session_id
             })
             
-            final_state = await sophie_orchestrator.execute_task(user_message, memory_context=context_str)
+            final_state = await kuugen_orchestrator.execute_task(user_message, memory_context=context_str)
             
             response_payload = {
                 "type": "result",
@@ -199,7 +199,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 assistant_reply_summary.append("Provided a news report.")
             if final_state.top_paper:
                 assistant_reply_summary.append(f"Targeted paper: {final_state.top_paper.title}")
-            current_memory.add_turn("Sophie", " ".join(assistant_reply_summary))
+            current_memory.add_turn("Kuugen", " ".join(assistant_reply_summary))
 
     except WebSocketDisconnect:
         print("[WebSocket] Frontend disconnected.")

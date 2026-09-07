@@ -15,7 +15,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('sophie-theme') || 'dark';
+    return localStorage.getItem('kuugen-theme') || 'dark';
   });
   
   const wsRef = useRef(null);
@@ -33,7 +33,7 @@ function App() {
 
   useEffect(() => {
     document.body.className = theme;
-    localStorage.setItem('sophie-theme', theme);
+    localStorage.setItem('kuugen-theme', theme);
   }, [theme]);
 
   useEffect(() => {
@@ -131,7 +131,7 @@ function App() {
         <div className="sidebar-top">
           <div className="app-brand">
             <span className="app-logo">🤖</span>
-            <h1>Sophie</h1>
+            <h1>Kuugen</h1>
           </div>
           <button className="new-chat-btn" onClick={handleNewChat}>＋ New Chat</button>
         </div>
@@ -165,7 +165,7 @@ function App() {
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
-            <h2>Sophie</h2>
+            <h2>Kuugen</h2>
             <span className={isConnected ? "status-dot connected" : "status-dot disconnected"}></span>
           </div>
         </header>
@@ -173,7 +173,7 @@ function App() {
         <div className="chat-window">
           {activeMessages.length === 0 ? (
             <div className="empty-state">
-              <h3>哈囉！我是 Sophie 👋</h3>
+              <h3>哈囉！我是 Kuugen 👋</h3>
               <p>有什麼我可以幫忙的嗎？</p>
             </div>
           ) : (
@@ -267,7 +267,7 @@ function App() {
                 e.target.style.height = `${e.target.scrollHeight}px`; 
               }}
               onKeyDown={handleKeyPress}
-              placeholder="輸入指令給 Sophie..."
+              placeholder="輸入指令給 Kuugen..."
               rows={1}
             />
             <button onClick={handleSendMessage} disabled={!isConnected || !inputValue.trim()} className="send-btn">

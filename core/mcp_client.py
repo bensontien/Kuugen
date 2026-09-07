@@ -3,7 +3,7 @@ from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-class SophieMCPClient:
+class KuugenMCPClient:
     def __init__(self, server_script_path: str = "tools_server.py"):
         self.server_script_path = server_script_path
         self.exit_stack = AsyncExitStack()

@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from mcp.server.fastmcp import FastMCP
 
 # Initialize FastMCP server
-mcp = FastMCP("SophieTools")
+mcp = FastMCP("KuugenTools")
 
 @mcp.tool()
 def download_pdf(url: str, filename: str) -> str:

@@ -2,8 +2,8 @@ import os
 from huggingface_hub import snapshot_download
 
 # Set model name and storage path
-model_id = "HauhauCS/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive"
-local_dir = os.path.expanduser("~/models/HauhauCS/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive")
+model_id = "Qwen/Qwen2.5-Coder-7B-Instruct-AWQ"
+local_dir = os.path.expanduser("~/models/Qwen/Qwen2.5-Coder-7B-Instruct-AWQ")
 
 print(f"Starting model download: {model_id}")
 print(f"Storage path: {local_dir}")

@@ -138,17 +138,24 @@ class GenericAgentActor:
         self.llm_type = llm_type
         self.tool_manager_actor = tool_manager_actor
         self._factory = None
+        self._llm = None
 
     async def initialize(self):
-        """Dummy initialization for parallel compatibility."""
+        """Eagerly initialize AgentFactory and LLM for GenericAgent."""
+        if self._factory is None:
+            from factorys.agent_factory import AgentFactory
+            self._factory = AgentFactory()
+            self._llm = self._factory.get_llm(self.llm_type)
         return True
 
     async def run(self, state: AgentState, task_dict: dict) -> AgentState:
         from agents.generic_agent import GenericAgent
         if self._factory is None:
+            from factorys.agent_factory import AgentFactory
             self._factory = AgentFactory()
+            self._llm = self._factory.get_llm(self.llm_type)
         
-        llm = self._factory.get_llm(self.llm_type)
+        llm = self._llm or self._factory.get_llm(self.llm_type)
         task = Task(**task_dict)
         
         print(f"[Ray Actor: GenericAgent] Executing step {task.task_id}")

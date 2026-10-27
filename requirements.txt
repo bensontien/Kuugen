@@ -12,6 +12,7 @@ httpx
 # Tools & Agents Utilities
 beautifulsoup4
 duckduckgo-search
+ddgs
 arxiv
 pymupdf
 

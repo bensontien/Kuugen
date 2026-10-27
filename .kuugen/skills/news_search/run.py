@@ -1,6 +1,9 @@
 import asyncio
 from core.state import AgentState
-from ddgs import DDGS 
+try:
+    from duckduckgo_search import DDGS
+except ImportError:
+    from ddgs import DDGS 
 from core.prompt_loader import PromptLoader
 
 async def fetch_news_data(topic: str, tool_manager):

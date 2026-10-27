@@ -43,7 +43,7 @@ class AgentFactory:
             raise ValueError(f"Unknown LLM type: {llm_type}")
 
     def create_agent(self, agent_type: str, llm_type: str = 'local', **kwargs) -> Any:
-        # 1. Extract tool_manager immediately to prevent leaking into Workflow kwargs
+        # 1. Extract tool_manager for agents that require it
         tool_mgr = kwargs.pop('tool_manager', None)
         
         # 2. Retrieve the corresponding LLM instance

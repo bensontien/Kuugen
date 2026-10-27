@@ -6,10 +6,8 @@ python-dotenv
 requests
 aiohttp
 
-# LLM Framework (LlamaIndex)
-llama-index
-llama-index-llms-openai
-llama-index-llms-openai-like
+# HTTP & Async Client
+httpx
 
 # Tools & Agents Utilities
 beautifulsoup4

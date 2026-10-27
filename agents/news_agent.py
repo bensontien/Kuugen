@@ -1,18 +1,14 @@
 import asyncio
-from llama_index.core.workflow import Workflow, StartEvent, StopEvent, step
+from core.base_agent import BaseAgent
 from core.state import AgentState
 from ddgs import DDGS 
 from core.prompt_loader import PromptLoader
 
-class NewsAgent(Workflow):
+class NewsAgent(BaseAgent):
     def __init__(self, llm, tool_manager, **kwargs):
-        super().__init__(**kwargs)
-        self.llm = llm
-        self.tool_manager = tool_manager # Inject the unified ToolManager
+        super().__init__(llm=llm, tool_manager=tool_manager, **kwargs)
 
-    @step
-    async def fetch_news(self, ev: StartEvent) -> StopEvent:
-        state: AgentState = ev.get("state")
+    async def run(self, state: AgentState) -> AgentState:
         topic = state.user_topic
         
         print(f"[NewsAgent] Executing bilingual web search for topic '{topic}'...")
@@ -39,7 +35,6 @@ class NewsAgent(Workflow):
         else:
             tasks = []
             for meta in search_results_meta:
-                # Execute tool via ToolManager
                 task = self.tool_manager.execute(
                     "fetch_page_content", 
                     url=meta.get('href'), 
@@ -52,7 +47,6 @@ class NewsAgent(Workflow):
 
             context_blocks = []
             for meta, content in zip(search_results_meta, page_contents):
-                # Handle potential remote RPC or ToolManager errors
                 if isinstance(content, Exception):
                     content = f"(Tool Error: {str(content)})"
                     
@@ -63,7 +57,6 @@ class NewsAgent(Workflow):
 
         print("[NewsAgent] Content scraping complete! Analyzing trends...")
         
-        # Dynamically load the prompt from Markdown
         prompt_template = PromptLoader.load_agent_prompt("news_agent")
         prompt = prompt_template.format(
             topic=topic,
@@ -77,4 +70,4 @@ class NewsAgent(Workflow):
             news_text = "Unable to fetch the latest news summary."
 
         state.news_report = news_text
-        return StopEvent(result=state)
+        return state

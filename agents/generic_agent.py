@@ -1,21 +1,25 @@
 import json
-from llama_index.core.workflow import Workflow, StartEvent, StopEvent, step
+from core.base_agent import BaseAgent
 from core.state import AgentState
 from core.prompt_loader import PromptLoader
 
-class GenericAgent(Workflow):
-    def __init__(self, llm, tool_manager=None, required_category: str = None, system_prompt: str = "", task_id: int = 0, timeout: float = 3600.0, **kwargs):
-        # Set a large timeout to override default Workflow limits
-        super().__init__(timeout=timeout, **kwargs)
-        self.llm = llm
-        self.tool_manager = tool_manager
+class GenericAgent(BaseAgent):
+    def __init__(
+        self,
+        llm,
+        tool_manager=None,
+        required_category: str = None,
+        system_prompt: str = "",
+        task_id: int = 0,
+        timeout: float = 3600.0,
+        **kwargs
+    ):
+        super().__init__(llm=llm, tool_manager=tool_manager, timeout=timeout, **kwargs)
         self.required_category = required_category 
         self.system_prompt = system_prompt
         self.task_id = task_id 
 
-    @step
-    async def run_task(self, ev: StartEvent) -> StopEvent:
-        state: AgentState = ev.get("state")
+    async def run(self, state: AgentState) -> AgentState:
         user_input = state.user_topic
         
         print(f"[GenericAgent - Step {self.task_id}] Spawning custom agent with category: {self.required_category}")
@@ -100,4 +104,4 @@ class GenericAgent(Workflow):
             state.step_results[self.task_id] = error_msg
             state.chat_reply = error_msg
             
-        return StopEvent(result=state)
+        return state

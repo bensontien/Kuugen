@@ -1,6 +1,6 @@
 # Kuugen AI Assistant (v2.0)
 
-Kuugen is a high-performance, enterprise-grade AI assistant system built on a **Microservices & Multi-Agent Architecture**. It leverages **Ray** for parallel task orchestration, **LlamaIndex** for agentic workflows, and the **Model Context Protocol (MCP)** for standardized tool execution.
+Kuugen is a high-performance, enterprise-grade AI assistant system built on a **Microservices & Multi-Agent Architecture**. It leverages **Ray** for parallel task orchestration, **Native Async Workflows** for agentic execution, and the **Model Context Protocol (MCP)** for standardized tool execution.
 
 The system features a clean separation between the "Brain" (LLM reasoning and planning) and the "Muscle" (Tool execution and environment interaction), following a **Prompts-as-Code** philosophy.
 
@@ -14,7 +14,7 @@ The system features a clean separation between the "Brain" (LLM reasoning and pl
 -   **Ray-Powered Parallel DAG Scheduling**: Complex user queries are analyzed and decomposed into a Directed Acyclic Graph (DAG) of dependent/independent tasks (`depends_on`). Ready tasks execute concurrently across a Ray worker cluster via a hybrid scheduler that dynamically polls Ray `ObjectRef`s and native `asyncio.Task`s using `ray.wait` and `asyncio.wait(FIRST_COMPLETED)`, preventing deadlocks.
 -   **Real-Time Step Tracking & Event Streaming**: Fine-grained execution stages (`memory_retrieval`, `planning`, `plan_ready`, `executing_parallel`, `executing_single`, `task_completed`, `finalizing`, `finished`) and individual step transitions (`pending`, `running`, `completed`, `failed`) are broadcast via WebSocket in real time for live UI visualization.
 -   **Eager Background Warm-Up & Sub-Second Startup**: During the FastAPI lifespan startup, actors are warmed up in a non-blocking background task. Combined with lazy module importing and LLM instance caching in `AgentFactory` and `ModelFactory`, the API gateway achieves sub-second cold starts without latency spikes on initial requests.
--   **Brain-Muscle Decoupling via Ray Tool Actor**: AI agent workflows (LlamaIndex) are isolated from physical tool execution via `ToolManagerActor` and `RayToolManagerProxy`. The tool server runs as an independent FastMCP process over stdio, eliminating Python GIL bottlenecks and cross-process object serialization issues.
+-   **Brain-Muscle Decoupling via Ray Tool Actor**: AI agent workflows (Native Async Agents) are isolated from physical tool execution via `ToolManagerActor` and `RayToolManagerProxy`. The tool server runs as an independent FastMCP process over stdio, eliminating Python GIL bottlenecks and cross-process object serialization issues.
 -   **Dual-Track Routing & Progressive Tool Disclosure**: 
     -   **Specialized Agents**: High-efficiency, multi-step workflows tuned for specific domains (`SearchPaperAgent`, `NewsAgent`, `PDFTranslatorAgent`, `ChatAgent`).
     -   **Generic Agents**: Dynamic runtime agents instantiated on-the-fly for custom tasks, discovering tool definitions progressively through categorized skill schemas (`web_scraping`, `system_ops`, `general`) to keep context windows clean.
@@ -54,7 +54,7 @@ Agents/
 │       ├── system_ops.md
 │       └── web_scraping.md
 │
-├── agents/                     # Implementation Layer (LlamaIndex Workflows)
+├── agents/                     # Implementation Layer (Native Async Agents)
 │   ├── chat_agent.py           # Conversational & capability-aware agent
 │   ├── generic_agent.py        # Dynamic agent with progressive tool disclosure
 │   ├── news_agent.py           # Real-time news aggregation, scraping & analysis
@@ -62,6 +62,8 @@ Agents/
 │   └── translator_agent.py     # High-precision chunked PDF translation workflow
 │
 ├── core/                       # Kernel & Infrastructure Layer
+│   ├── base_agent.py           # Native BaseAgent abstract class
+│   ├── llm_client.py           # Native OpenAI-compatible asynchronous HTTP client
 │   ├── mcp_client.py           # FastMCP client implementation (stdio communication)
 │   ├── memory.py               # Sliding-window context memory & LLM auto-compression
 │   ├── orchestrator.py         # Dynamic DAG planner, parallel task scheduler & event streamer

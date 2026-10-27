@@ -1,17 +1,12 @@
-from llama_index.core.workflow import Workflow, StartEvent, StopEvent, step
+from core.base_agent import BaseAgent
 from core.state import AgentState
 from core.prompt_loader import PromptLoader
 
-class ChatAgent(Workflow):
+class ChatAgent(BaseAgent):
     def __init__(self, llm, tool_manager=None, **kwargs):
-        super().__init__(**kwargs)
-        self.llm = llm
-        self.tool_manager = tool_manager
+        super().__init__(llm=llm, tool_manager=tool_manager, **kwargs)
 
-    @step
-    async def chat(self, ev: StartEvent) -> StopEvent:
-        state: AgentState = ev.get("state")
-        
+    async def run(self, state: AgentState) -> AgentState:
         print("[ChatAgent] Thinking and generating response...")
         
         prompt_template = PromptLoader.load_agent_prompt("chat_agent")
@@ -28,13 +23,10 @@ class ChatAgent(Workflow):
         )
         
         try:
-            # Use Ray Proxy to get dynamic tool list if needed (fallback)
-            # available_tools = self.tool_manager.get_all_tool_descriptions()
-            
             response = await self.llm.acomplete(prompt)
             state.chat_reply = str(response).strip()
         except Exception as e:
             print(f"[ChatAgent] Failed to generate response: {e}")
             state.chat_reply = "ERROR"
 
-        return StopEvent(result=state)
+        return state

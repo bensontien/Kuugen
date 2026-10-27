@@ -4,8 +4,8 @@ import requests
 import arxiv
 import datetime
 import re
-from typing import List, Dict, Any
-from llama_index.core.workflow import Workflow, StartEvent, StopEvent, Event, step
+from typing import List, Dict, Any, Tuple
+from core.base_agent import BaseAgent
 from core.state import AgentState, PaperData
 
 # OpenAlex Settings
@@ -73,35 +73,13 @@ async def _score_single_paper(paper: Dict, user_topic: str, llm) -> Dict:
         paper['detailed_score'] = f"Scoring failed: {e}"
     return paper
 
-# --- Workflow Events ---
-class FetchEvent(Event):
-    state: AgentState
-    papers: List[Dict]
-
-class ScoreEvent(Event):
-    state: AgentState
-    scored_papers: List[Dict]
-
-class SnowballEvent(Event):
-    state: AgentState
-    scored_papers: List[Dict]
-
-class SummaryEvent(Event):
-    state: AgentState
-    scored_papers: List[Dict]
-    final_report: str
-
-# --- Integrated Workflow ---
-class SearchPaperAgent(Workflow):
+class SearchPaperAgent(BaseAgent):
     def __init__(self, llm, **kwargs):
-        super().__init__(**kwargs)
-        self.llm = llm
+        super().__init__(llm=llm, **kwargs)
 
-    @step
-    async def fetch_papers(self, ev: StartEvent) -> FetchEvent:
-        state: AgentState = ev.get("state")
+    async def fetch_papers(self, state: AgentState) -> Tuple[AgentState, List[Dict]]:
         raw_prompt = state.user_topic
-        print(f"Starting Deep SearchPaperAgent | Arxiv + OpenAlex")
+        print("Starting Deep SearchPaperAgent | Arxiv + OpenAlex")
 
         # Extract core topic
         print("Extracting core research topic...")
@@ -109,7 +87,7 @@ class SearchPaperAgent(Workflow):
         try:
             core_topic_res = await self.llm.acomplete(extract_prompt)
             core_topic = str(core_topic_res).strip().replace('"', '').replace("'", "")
-        except:
+        except Exception:
             core_topic = raw_prompt
         state.search_keywords_used = [core_topic]
 
@@ -119,11 +97,11 @@ class SearchPaperAgent(Workflow):
         try:
             expanded = await self.llm.acomplete(query_prompt)
             search_query = str(expanded).strip().replace('"', '')
-        except:
+        except Exception:
             search_query = core_topic
 
         def fetch_arxiv(query):
-            print(f" [Arxiv] Fetching preprints...")
+            print(" [Arxiv] Fetching preprints...")
             papers = []
             try:
                 search = arxiv.Search(query=query, max_results=30, sort_by=arxiv.SortCriterion.SubmittedDate)
@@ -132,11 +110,12 @@ class SearchPaperAgent(Workflow):
                         "title": r.title.replace("\n", " "), "summary": r.summary.replace("\n", " "),
                         "url": r.pdf_url, "venue": "Arxiv Preprint", "date": r.published.strftime("%Y-%m-%d"), "id": r.entry_id
                     })
-            except: pass
+            except Exception:
+                pass
             return papers
 
         def fetch_openalex(query):
-            print(f" [OpenAlex] Fetching journal articles...")
+            print(" [OpenAlex] Fetching journal articles...")
             papers = []
             params = {
                 "filter": f"primary_location.source.issn:{'|'.join(TARGET_ISSNS)},default.search:{query},from_publication_date:2024-01-01",
@@ -153,7 +132,8 @@ class SearchPaperAgent(Workflow):
                         "venue": r.get("primary_location", {}).get("source", {}).get("display_name", "Unknown Journal"),
                         "date": r.get("publication_date"), "id": r.get("id"), "referenced_works": r.get("referenced_works", [])
                     })
-            except: pass
+            except Exception:
+                pass
             return papers
 
         loop = asyncio.get_event_loop()
@@ -166,28 +146,30 @@ class SearchPaperAgent(Workflow):
         seen = set()
         for p in all_papers:
             if p['title'].lower() not in seen:
-                seen.add(p['title'].lower()); unique.append(p)
-        return FetchEvent(state=state, papers=unique)
+                seen.add(p['title'].lower())
+                unique.append(p)
+        return state, unique
 
-    @step
-    async def score_papers(self, ev: FetchEvent) -> ScoreEvent:
-        if not ev.papers: return ScoreEvent(state=ev.state, scored_papers=[])
-        print(f"Scoring {len(ev.papers)} papers...")
+    async def score_papers(self, state: AgentState, papers: List[Dict]) -> Tuple[AgentState, List[Dict]]:
+        if not papers:
+            return state, []
+        print(f"Scoring {len(papers)} papers...")
         scored = []
-        for i in range(0, len(ev.papers), 10):
-            batch = ev.papers[i:i+10]
-            results = await asyncio.gather(*[_score_single_paper(p, ev.state.user_topic, self.llm) for p in batch])
+        for i in range(0, len(papers), 10):
+            batch = papers[i:i+10]
+            results = await asyncio.gather(*[_score_single_paper(p, state.user_topic, self.llm) for p in batch])
             scored.extend(results)
             await asyncio.sleep(1)
         top_20 = sorted(scored, key=lambda x: x['score'], reverse=True)[:20]
-        return ScoreEvent(state=ev.state, scored_papers=top_20)
+        return state, top_20
 
-    @step
-    async def snowball_expansion(self, ev: ScoreEvent) -> SnowballEvent:
-        if not ev.scored_papers: return SnowballEvent(state=ev.state, scored_papers=[])
-        top = ev.scored_papers[0]
+    async def snowball_expansion(self, state: AgentState, scored_papers: List[Dict]) -> Tuple[AgentState, List[Dict]]:
+        if not scored_papers:
+            return state, []
+        top = scored_papers[0]
         ref_ids = top.get("referenced_works", [])
-        if not ref_ids: return SnowballEvent(state=ev.state, scored_papers=ev.scored_papers)
+        if not ref_ids:
+            return state, scored_papers
         print(f"Backward Snowballing for: {top['title']}")
         params = {"filter": f"openalex_id:{'|'.join([u.split('/')[-1] for u in ref_ids[:10]])}", "per_page": 10, "mailto": MAILTO}
         try:
@@ -203,38 +185,52 @@ class SearchPaperAgent(Workflow):
                     "date": r.get("publication_date"), "id": r.get("id")
                 })
             if sb_papers:
-                scored_sb = await asyncio.gather(*[_score_single_paper(p, ev.state.user_topic, self.llm) for p in sb_papers])
-                final = sorted(ev.scored_papers + scored_sb, key=lambda x: x['score'], reverse=True)[:20]
-                return SnowballEvent(state=ev.state, scored_papers=final)
-        except: pass
-        return SnowballEvent(state=ev.state, scored_papers=ev.scored_papers)
+                scored_sb = await asyncio.gather(*[_score_single_paper(p, state.user_topic, self.llm) for p in sb_papers])
+                final = sorted(scored_papers + scored_sb, key=lambda x: x['score'], reverse=True)[:20]
+                return state, final
+        except Exception:
+            pass
+        return state, scored_papers
 
-    @step
-    async def generate_summary(self, ev: SnowballEvent) -> SummaryEvent:
-        if not ev.scored_papers: return SummaryEvent(state=ev.state, scored_papers=[], final_report="")
-        print(f"Generating summary for Top {len(ev.scored_papers)} papers...")
-        report = f"## Deep Literature Review\n**Topic**: {ev.state.user_topic}\n\n---\n\n"
+    async def generate_summary(self, state: AgentState, scored_papers: List[Dict]) -> Tuple[AgentState, List[Dict], str]:
+        if not scored_papers:
+            return state, [], ""
+        print(f"Generating summary for Top {len(scored_papers)} papers...")
+        report = f"## Deep Literature Review\n**Topic**: {state.user_topic}\n\n---\n\n"
+        
         async def summarize(p):
             prompt = f"Summarize in Traditional Chinese: {p['title']}\n{p['summary']}"
-            try: return str(await self.llm.acomplete(prompt))
-            except: return "Summary failed"
-        summaries = await asyncio.gather(*[summarize(p) for p in ev.scored_papers])
-        for i, (p, s) in enumerate(zip(ev.scored_papers, summaries)):
+            try:
+                return str(await self.llm.acomplete(prompt))
+            except Exception:
+                return "Summary failed"
+                
+        summaries = await asyncio.gather(*[summarize(p) for p in scored_papers])
+        for i, (p, s) in enumerate(zip(scored_papers, summaries)):
             report += f"### {i+1}. {p['title']}\n- Rank: {i+1} | Score: {p['score']}/60\n- {p['venue']} | {p['date']}\n\n{s}\n\n[PDF]({p['url']})\n\n---\n\n"
-        return SummaryEvent(state=ev.state, scored_papers=ev.scored_papers, final_report=report)
+        return state, scored_papers, report
 
-    @step
-    async def save_report(self, ev: SummaryEvent) -> StopEvent:
-        state = ev.state
-        if not ev.scored_papers:
-            state.chat_reply = "No papers found."; return StopEvent(result=state)
+    async def save_report(self, state: AgentState, scored_papers: List[Dict], final_report: str) -> AgentState:
+        if not scored_papers:
+            state.chat_reply = "No papers found."
+            return state
         filename = f"Papers/DeepReview_{datetime.date.today()}.md"
         os.makedirs("Papers", exist_ok=True)
         try:
-            with open(filename, "w", encoding="utf-8") as f: f.write(ev.final_report)
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(final_report)
             state.search_report_file = filename
-            state.top_paper = PaperData(title=ev.scored_papers[0]['title'], url=ev.scored_papers[0]['url'])
-            state.search_report_content = ev.final_report 
+            state.top_paper = PaperData(title=scored_papers[0]['title'], url=scored_papers[0]['url'])
+            state.search_report_content = final_report 
             state.chat_reply = "Search completed and report generated."
-        except: state.chat_reply = "Error saving report."
-        return StopEvent(result=state)
+        except Exception:
+            state.chat_reply = "Error saving report."
+        return state
+
+    async def run(self, state: AgentState) -> AgentState:
+        state, papers = await self.fetch_papers(state)
+        state, scored = await self.score_papers(state, papers)
+        state, final_scored = await self.snowball_expansion(state, scored)
+        state, final_scored, report = await self.generate_summary(state, final_scored)
+        state = await self.save_report(state, final_scored, report)
+        return state

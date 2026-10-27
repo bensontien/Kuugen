@@ -27,3 +27,7 @@ opencc-python-reimplemented
 
 # Distributed & Parallel Execution
 ray[default]
+
+# Testing
+pytest
+pytest-asyncio

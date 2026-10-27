@@ -1,13 +1,8 @@
 import pytest
-import os
 from unittest.mock import AsyncMock, MagicMock
-from core.state import AgentState, PaperData
+from core.state import AgentState
 from core.llm_client import LLMResponse
-from agents.chat_agent import ChatAgent
 from agents.generic_agent import GenericAgent
-from agents.news_agent import NewsAgent
-from agents.translator_agent import PDFTranslatorAgent
-from agents.searchpaper_agent import SearchPaperAgent
 
 class MockLLM:
     def __init__(self, reply_text="Mock Response"):
@@ -21,123 +16,145 @@ class FailingLLM:
         raise RuntimeError("LLM connection timeout")
 
 @pytest.mark.asyncio
-async def test_chat_agent_success():
-    llm = MockLLM("Hello! I am Kuugen.")
-    agent = ChatAgent(llm=llm)
-    state = AgentState(user_topic="Hi")
+async def test_react_direct_answer_chat_mode():
+    """Verifies that GenericAgent functions as a conversational agent when no tools are needed."""
+    llm = MockLLM("Hello! I am Kuugen, your AI assistant.")
+    agent = GenericAgent(llm=llm, task_id=1, system_prompt="You are a helpful assistant.")
+    state = AgentState(user_topic="Hi, who are you?")
+    
     result = await agent.run(state)
-    assert result.chat_reply == "Hello! I am Kuugen."
+    assert result.chat_reply == "Hello! I am Kuugen, your AI assistant."
+    assert result.step_results[1] == "Hello! I am Kuugen, your AI assistant."
     assert not result.is_aborted
 
 @pytest.mark.asyncio
-async def test_chat_agent_error():
-    llm = FailingLLM()
-    agent = ChatAgent(llm=llm)
-    state = AgentState(user_topic="Hi")
-    result = await agent.run(state)
-    assert result.chat_reply == "ERROR"
+async def test_react_single_tool_execution():
+    """Verifies Think -> Action -> Observation -> Final Answer sequence."""
+    tool_action = '```json\n{"action": "test_calculator", "arguments": {"expr": "40 + 2"}}\n```'
+    final_answer = "The calculated answer is 42."
 
-@pytest.mark.asyncio
-async def test_generic_agent_direct_answer():
-    llm = MockLLM("Here is direct explanation without tools.")
-    agent = GenericAgent(llm=llm, task_id=1, system_prompt="You are helper.")
-    state = AgentState(user_topic="Explain quantum computing")
-    result = await agent.run(state)
-    assert result.chat_reply == "Here is direct explanation without tools."
-    assert result.step_results[1] == "Here is direct explanation without tools."
-
-@pytest.mark.asyncio
-async def test_generic_agent_tool_calling():
-    # First response returns JSON tool action, second summary response returns final text
-    tool_json = '```json\n{"action": "test_tool", "arguments": {"query": "test"}}\n```'
-    summary_text = "Tool execution was successful and summarized."
-    
     mock_llm = MagicMock()
     mock_llm.acomplete = AsyncMock(side_effect=[
-        LLMResponse(text=tool_json),
-        LLMResponse(text=summary_text)
+        LLMResponse(text=tool_action),
+        LLMResponse(text=final_answer)
     ])
-    
+
     mock_tool_manager = MagicMock()
-    mock_tool_manager.execute = AsyncMock(return_value="Raw tool execution output")
-    mock_tool_manager.get_schemas_by_category = MagicMock(return_value="tool schema")
+    mock_tool_manager.get_schemas_by_category = MagicMock(return_value="test tool schema")
+    mock_tool_manager.execute = AsyncMock(return_value="42")
 
     agent = GenericAgent(
         llm=mock_llm,
         tool_manager=mock_tool_manager,
         required_category="general",
-        task_id=2
+        task_id=1
     )
-    state = AgentState(user_topic="Run tool")
+    state = AgentState(user_topic="Calculate 40 + 2")
     result = await agent.run(state)
 
-    mock_tool_manager.execute.assert_awaited_once_with("test_tool", query="test")
-    assert result.chat_reply == summary_text
-    assert result.step_results[2] == summary_text
+    mock_tool_manager.execute.assert_awaited_once_with("test_calculator", state=state, llm=mock_llm, expr="40 + 2")
+    assert result.chat_reply == final_answer
+    assert result.step_results[1] == final_answer
 
 @pytest.mark.asyncio
-async def test_news_agent_fallback_on_empty():
-    llm = MockLLM("News Summary")
-    mock_tool_manager = MagicMock()
-    agent = NewsAgent(llm=llm, tool_manager=mock_tool_manager)
-    # Give an empty topic so search returns empty or handled safely
-    state = AgentState(user_topic="")
-    result = await agent.run(state)
-    assert result.news_report is not None
-
-@pytest.mark.asyncio
-async def test_translator_agent_no_paper():
-    agent = PDFTranslatorAgent(llm=MockLLM())
-    state = AgentState(user_topic="Translate")
-    result = await agent.run(state)
-    assert result.is_aborted is True
-
-@pytest.mark.asyncio
-async def test_translator_agent_missing_file():
-    agent = PDFTranslatorAgent(llm=MockLLM())
-    state = AgentState(user_topic="Translate")
-    state.top_paper = PaperData(title="NonExistent", url="http://example.com", pdf_path="/tmp/nonexistent_paper_12345.pdf")
-    result = await agent.run(state)
-    assert result.is_aborted is True
-
-@pytest.mark.asyncio
-async def test_searchpaper_agent_pipeline():
-    scoring_response = "Evaluation result:\nTotal Score: 52\nHigh technical depth."
-    summary_response = "這是一篇關於多代理人架構的文獻。"
+async def test_react_multi_step_tool_chaining():
+    """Verifies multi-step tool execution chaining across iterations."""
+    step1_action = '```json\n{"action": "step1_tool", "arguments": {"query": "init"}}\n```'
+    step2_action = '```json\n{"action": "step2_tool", "arguments": {"data": "step1_output"}}\n```'
+    final_answer = "Completed multi-step workflow successfully."
 
     mock_llm = MagicMock()
     mock_llm.acomplete = AsyncMock(side_effect=[
-        LLMResponse(text=scoring_response),
-        LLMResponse(text=summary_response)
+        LLMResponse(text=step1_action),
+        LLMResponse(text=step2_action),
+        LLMResponse(text=final_answer)
     ])
 
-    agent = SearchPaperAgent(llm=mock_llm)
-    state = AgentState(user_topic="Multi-Agent Systems")
+    mock_tool_manager = MagicMock()
+    mock_tool_manager.get_schemas_by_category = MagicMock(return_value="schemas")
+    mock_tool_manager.execute = AsyncMock(side_effect=[
+        "step1_output",
+        "step2_output"
+    ])
 
-    dummy_papers = [
-        {
-            "title": "Decoupled Multi-Agent Systems",
-            "summary": "This abstract presents a comprehensive study of decoupled multi-agent architectures with high rigor and extensive evaluation.",
-            "url": "http://arxiv.org/abs/1234.5678",
-            "venue": "IEEE TPAMI",
-            "date": "2026-03-01",
-            "id": "1234.5678"
-        }
-    ]
+    agent = GenericAgent(
+        llm=mock_llm,
+        tool_manager=mock_tool_manager,
+        required_category="general",
+        task_id=2,
+        max_steps=5
+    )
+    state = AgentState(user_topic="Run two tools in sequence")
+    result = await agent.run(state)
 
-    # Test scoring
-    state, scored = await agent.score_papers(state, dummy_papers)
-    assert len(scored) == 1
-    assert scored[0]["score"] == 52
+    assert mock_tool_manager.execute.await_count == 2
+    assert result.chat_reply == final_answer
 
-    # Test summary
-    state, scored, report = await agent.generate_summary(state, scored)
-    assert "Decoupled Multi-Agent Systems" in report
-    assert "52/60" in report
+@pytest.mark.asyncio
+async def test_react_skill_dispatch():
+    """Verifies that GenericAgent detects and dispatches skill calls directly to SkillManager."""
+    from unittest.mock import patch
+    skill_action = '```json\n{"action": "news_search", "arguments": {"topic": "AI"}}\n```'
+    final_answer = "Here is the summary of news on AI."
 
-    # Test saving report
-    state = await agent.save_report(state, scored, report)
-    assert state.search_report_file is not None
-    assert os.path.exists(state.search_report_file)
-    assert state.top_paper.title == "Decoupled Multi-Agent Systems"
-    assert state.chat_reply == "Search completed and report generated."
+    mock_llm = MagicMock()
+    mock_llm.acomplete = AsyncMock(side_effect=[
+        LLMResponse(text=skill_action),
+        LLMResponse(text=final_answer)
+    ])
+
+    with patch("core.skill_manager.SkillManager.execute_skill", new_callable=AsyncMock) as mock_exec:
+        dummy_state = AgentState(user_topic="AI")
+        dummy_state.news_report = "Mocked news report content"
+        mock_exec.return_value = dummy_state
+
+        agent = GenericAgent(
+            llm=mock_llm,
+            tool_manager=MagicMock(),
+            required_category="web_scraping",
+            task_id=3
+        )
+        state = AgentState(user_topic="Search news on AI")
+        result = await agent.run(state)
+
+        mock_exec.assert_awaited_once()
+        assert result.chat_reply == final_answer
+
+@pytest.mark.asyncio
+async def test_react_max_steps_guard():
+    """Verifies that ReAct loop halts and consolidates when reaching max_steps limit."""
+    infinite_tool_action = '```json\n{"action": "test_loop", "arguments": {}}\n```'
+
+    mock_llm = MagicMock()
+    # Return tool action on all turns plus final consolidation summary
+    mock_llm.acomplete = AsyncMock(side_effect=[
+        LLMResponse(text=infinite_tool_action),
+        LLMResponse(text=infinite_tool_action),
+        LLMResponse(text=infinite_tool_action),
+        LLMResponse(text="Forced consolidation summary after reaching limit.")
+    ])
+
+    mock_tool_manager = MagicMock()
+    mock_tool_manager.get_schemas_by_category = MagicMock(return_value="schemas")
+    mock_tool_manager.execute = AsyncMock(return_value="tool output")
+
+    agent = GenericAgent(
+        llm=mock_llm,
+        tool_manager=mock_tool_manager,
+        task_id=4,
+        max_steps=3 # Low step limit for test
+    )
+    state = AgentState(user_topic="Infinite loop test")
+    result = await agent.run(state)
+
+    assert mock_tool_manager.execute.await_count == 3
+    assert result.chat_reply == "Forced consolidation summary after reaching limit."
+
+@pytest.mark.asyncio
+async def test_react_llm_error_handling():
+    """Verifies graceful error handling when LLM fails during execution."""
+    agent = GenericAgent(llm=FailingLLM(), task_id=5)
+    state = AgentState(user_topic="Test failing LLM")
+    result = await agent.run(state)
+
+    assert "Error during reasoning" in result.chat_reply

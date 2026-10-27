@@ -15,6 +15,9 @@ class PromptLoader:
 
     @classmethod
     def load_skill_details(cls, category: str) -> str:
+        skill_md_path = os.path.join(cls.BASE_DIR, "skills", category, "SKILL.md")
+        if os.path.exists(skill_md_path):
+            return cls._read_file(skill_md_path, f"Use tools in the {category} category carefully.")
         path = os.path.join(cls.BASE_DIR, "skills", f"{category}.md")
         return cls._read_file(path, f"Use tools in the {category} category carefully.")
 

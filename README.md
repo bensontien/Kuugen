@@ -42,28 +42,22 @@ The system features a clean separation between the "Brain" (LLM reasoning and pl
 
 ```text
 Agents/
-├── .kuugen/                    # Intelligence Layer (Prompts-as-Code)
-│   ├── agents/                 # Personas for Orchestrator and Specialized Agents
-│   │   ├── chat_agent.md
-│   │   ├── generic_agent_decision.md
-│   │   ├── generic_agent_summary.md
-│   │   ├── news_agent.md
+├── .kuugen/                    # Intelligence Layer (Prompts-as-Code & Modular Skills)
+│   ├── agents/                 # Personas for Orchestrator and ReAct Agents
 │   │   └── orchestrator.md
-│   └── skills/                 # Skill catalogs & category definitions
-│       ├── catalog.md
-│       ├── system_ops.md
-│       └── web_scraping.md
+│   └── skills/                 # Modular Skill Packages & Catalogs
+│       ├── catalog.md          # Global skill category index
+│       ├── search_paper/       # Deep academic literature search & scoring
+│       ├── pdf_translator/     # Chunked academic PDF translation
+│       └── news_search/        # Real-time web news aggregation & analysis
 │
-├── agents/                     # Implementation Layer (Native Async Agents)
-│   ├── chat_agent.py           # Conversational & capability-aware agent
-│   ├── generic_agent.py        # Dynamic agent with progressive tool disclosure
-│   ├── news_agent.py           # Real-time news aggregation, scraping & analysis
-│   ├── searchpaper_agent.py    # Academic paper search & ranking (OpenAlex / ArXiv)
-│   └── translator_agent.py     # High-precision chunked PDF translation workflow
+├── agents/                     # Implementation Layer (Autonomous ReAct Agent)
+│   └── generic_agent.py        # Unified ReAct agent with progressive tool/skill disclosure
 │
 ├── core/                       # Kernel & Infrastructure Layer
 │   ├── base_agent.py           # Native BaseAgent abstract class
 │   ├── llm_client.py           # Native OpenAI-compatible asynchronous HTTP client
+│   ├── skill_manager.py        # Dynamic skill discovery & execution manager
 │   ├── mcp_client.py           # FastMCP client implementation (stdio communication)
 │   ├── memory.py               # Sliding-window context memory & LLM auto-compression
 │   ├── orchestrator.py         # Dynamic DAG planner, parallel task scheduler & event streamer

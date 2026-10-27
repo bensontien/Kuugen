@@ -91,48 +91,6 @@ class FunctionActor:
             return state
 
 @ray.remote(num_cpus=0)
-class AgentActor:
-    def __init__(self, agent_type: str, llm_type: str = 'external', tool_manager_actor=None):
-        self.agent_type = agent_type
-        self.llm_type = llm_type
-        self.agent = None
-        self._factory = None
-        self.tool_manager_actor = tool_manager_actor # Reference to ToolManager Actor
-
-    async def initialize(self):
-        """Eagerly initialize the Agent instance."""
-        if self.agent is None:
-            print(f"[Ray Actor: {self.agent_type}] Initializing Agent instance...")
-            if self._factory is None:
-                from factorys.agent_factory import AgentFactory
-                self._factory = AgentFactory()
-            
-            # Inject a Proxy that can call the Ray Actor if the Agent needs tools
-            self.agent = self._factory.get_agent(
-                self.agent_type, 
-                llm_type=self.llm_type,
-                tool_manager=RayToolManagerProxy(self.tool_manager_actor) if self.tool_manager_actor else None
-            )
-        return True
-
-    async def run(self, state: AgentState) -> AgentState:
-        if self.agent is None:
-            await self.initialize()
-        
-        print(f"[Ray Actor: {self.agent_type}] Executing task...")
-        try:
-            result = self.agent.run(state=state)
-            if inspect.isawaitable(result):
-                return await result
-            return result
-        except Exception as e:
-            print(f"[Ray Actor: {self.agent_type}] Error: {e}")
-            import traceback
-            traceback.print_exc()
-            state.is_aborted = True
-            return state
-
-@ray.remote(num_cpus=0)
 class GenericAgentActor:
     def __init__(self, llm_type: str = 'external', tool_manager_actor=None):
         self.llm_type = llm_type

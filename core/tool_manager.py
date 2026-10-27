@@ -99,6 +99,67 @@ class MCPTool(Tool):
 class ToolManager:
     def __init__(self):
         self._tools: Dict[str, Tool] = {}
+        self.register_default_skills()
+
+    def register_default_skills(self):
+        """Register modular skills from .kuugen/skills/ as SkillTools."""
+        import os
+        from core.skill_manager import SkillManager
+
+        async def _run_search_paper(topic: str = "", state: Any = None, llm: Any = None, **kwargs):
+            from core.state import AgentState
+            st = state or AgentState(user_topic=topic)
+            if topic and not st.user_topic:
+                st.user_topic = topic
+            res_state = await SkillManager.execute_skill("search_paper", state=st, llm=llm, tool_manager=self, **kwargs)
+            return res_state.search_report_content or res_state.chat_reply or "Paper search completed."
+
+        async def _run_pdf_translator(pdf_path: str = "", state: Any = None, llm: Any = None, **kwargs):
+            from core.state import AgentState, PaperData
+            st = state or AgentState(user_topic="Translate")
+            if pdf_path:
+                st.top_paper = PaperData(title=os.path.basename(pdf_path), url="", pdf_path=pdf_path)
+            res_state = await SkillManager.execute_skill("pdf_translator", state=st, llm=llm, tool_manager=self, **kwargs)
+            return f"Translation completed: {res_state.final_translated_file}" if res_state.final_translated_file else "Translation completed."
+
+        async def _run_news_search(topic: str = "", state: Any = None, llm: Any = None, **kwargs):
+            from core.state import AgentState
+            st = state or AgentState(user_topic=topic)
+            if topic and not st.user_topic:
+                st.user_topic = topic
+            res_state = await SkillManager.execute_skill("news_search", state=st, llm=llm, tool_manager=self, **kwargs)
+            return res_state.news_report or "News search completed."
+
+        self.register_tool(SkillTool(
+            name="search_paper",
+            description="Deep academic paper search across ArXiv and OpenAlex top journals, 6-dimension scoring, snowballing, and review report generation.",
+            schema={
+                "properties": {"topic": {"type": "string", "description": "Academic research topic or query string"}},
+                "required": ["topic"]
+            },
+            func=_run_search_paper,
+            category="academic_research"
+        ))
+        self.register_tool(SkillTool(
+            name="pdf_translator",
+            description="Translate an academic PDF paper into Traditional Chinese markdown with formula preservation.",
+            schema={
+                "properties": {"pdf_path": {"type": "string", "description": "Local file path to the PDF paper"}},
+                "required": ["pdf_path"]
+            },
+            func=_run_pdf_translator,
+            category="academic_translation"
+        ))
+        self.register_tool(SkillTool(
+            name="news_search",
+            description="Search real-time bilingual news, scrape webpages, and synthesize trends.",
+            schema={
+                "properties": {"topic": {"type": "string", "description": "News topic to search for"}},
+                "required": ["topic"]
+            },
+            func=_run_news_search,
+            category="web_scraping"
+        ))
 
     def register_tool(self, tool: Tool):
         """Register a new tool."""

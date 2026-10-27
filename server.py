@@ -78,17 +78,14 @@ async def lifespan(app: FastAPI):
         state.chat_reply = result
         return state
 
-    # 4. Build the Registry (Lazy runners for fallback mode, avoids importing unused agents in main process)
+    # 4. Build the Registry (Unified ReAct Agent & Standalone Tools)
     registry = NodeRegistry()
-    registry.register("SearchPaperAgent", "Used for searching academic papers...", lambda state: factory.get_agent('SearchPaperAgent', llm_type=llm_type).run(state))
-    registry.register("DownloadTool", "Used to attempt downloading PDF files.", download_pdf_wrapper)
-    registry.register("TranslatorAgent", "Translate PDF files...", lambda state: factory.get_agent('PDFTranslatorAgent', timeout=3600, llm_type='translator').run(state))
     registry.register(
-        "NewsAgent", 
-        "Use ONLY when the user wants to SEARCH for general news, trends, or updates on a broad topic. DO NOT use this agent if the user provides a specific URL to read or scrape.", 
-        lambda state: factory.get_agent('NewsAgent', llm_type=llm_type, tool_manager=tool_manager_proxy).run(state)
+        "GenericAgent", 
+        "Autonomous ReAct Agent capable of multi-step reasoning, conversation, and invoking all registered skills and tools.", 
+        lambda state: factory.get_agent('GenericAgent', llm_type=llm_type, tool_manager=tool_manager_proxy).run(state)
     )
-    registry.register("ChatAgent", "General daily conversation...", lambda state: factory.get_agent('ChatAgent', llm_type=llm_type).run(state))
+    registry.register("DownloadTool", "Used to attempt downloading PDF files.", download_pdf_wrapper)
     
     # 5. Initialize the Orchestrator with lazy LLM resolver
     kuugen_orchestrator = KuugenOrchestrator(

@@ -50,3 +50,69 @@ async def test_orchestrator_local_execution():
     final_state = await orchestrator.execute_task("Hello")
     assert final_state.chat_reply == "Response from mock chat node"
     assert final_state.current_phase == "finished"
+
+@pytest.mark.asyncio
+async def test_orchestrator_generic_agent_dispatch():
+    registry = NodeRegistry()
+    plan_data = {
+        "tasks": [
+            {
+                "task_id": 1,
+                "description": "General conversation",
+                "assigned_node": "GenericAgent",
+                "depends_on": []
+            }
+        ]
+    }
+    class MockGenericLLM:
+        def __init__(self):
+            self.step = 0
+        async def acomplete(self, prompt: str, **kwargs):
+            self.step += 1
+            if self.step == 1:
+                return LLMResponse(text=f"```json\n{json.dumps(plan_data)}\n```")
+            return LLMResponse(text="Hello! I am Kuugen ReAct Agent.")
+
+    mock_llm = MockGenericLLM()
+    orchestrator = KuugenOrchestrator(llm=mock_llm, registry=registry)
+    final_state = await orchestrator.execute_task("Hello Kuugen")
+    assert "Kuugen ReAct Agent" in final_state.chat_reply
+    assert final_state.current_phase == "finished"
+
+@pytest.mark.asyncio
+async def test_orchestrator_multi_task_dag():
+    registry = NodeRegistry()
+    plan_data = {
+        "tasks": [
+            {
+                "task_id": 1,
+                "description": "Step 1",
+                "assigned_node": "GenericAgent",
+                "depends_on": []
+            },
+            {
+                "task_id": 2,
+                "description": "Step 2",
+                "assigned_node": "GenericAgent",
+                "depends_on": [1]
+            }
+        ]
+    }
+    class MockDAGLLM:
+        def __init__(self):
+            self.count = 0
+        async def acomplete(self, prompt: str, **kwargs):
+            self.count += 1
+            if self.count == 1:
+                return LLMResponse(text=f"```json\n{json.dumps(plan_data)}\n```")
+            elif self.count == 2:
+                return LLMResponse(text="Result of step 1")
+            else:
+                return LLMResponse(text="Result of step 2")
+
+    mock_llm = MockDAGLLM()
+    orchestrator = KuugenOrchestrator(llm=mock_llm, registry=registry)
+    final_state = await orchestrator.execute_task("Run two steps")
+    assert 1 in final_state.step_results
+    assert 2 in final_state.step_results
+    assert final_state.current_phase == "finished"

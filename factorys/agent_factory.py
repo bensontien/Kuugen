@@ -42,60 +42,25 @@ class AgentFactory:
         else:
             raise ValueError(f"Unknown LLM type: {llm_type}")
 
-    def create_agent(self, agent_type: str, llm_type: str = 'local', **kwargs) -> Any:
-        # 1. Extract tool_manager for agents that require it
+    def create_agent(self, agent_type: str = 'GenericAgent', llm_type: str = 'local', **kwargs) -> Any:
         tool_mgr = kwargs.pop('tool_manager', None)
-        
-        # 2. Retrieve the corresponding LLM instance
         target_llm = self.get_llm(llm_type)
-        
-        # 3. Calculate the final timeout
         timeout = kwargs.pop('timeout', self.default_timeout)
 
-        # 4. Instantiate the Agent with on-demand lazy imports
-        if agent_type == 'SearchPaperAgent':
-            from agents.searchpaper_agent import SearchPaperAgent
-            return SearchPaperAgent(
-                llm=target_llm, 
-                timeout=timeout,
-                verbose=True, 
-                **kwargs
-            )
-            
-        elif agent_type == 'PDFTranslatorAgent':
-            from agents.translator_agent import PDFTranslatorAgent
-            trans_timeout = timeout if timeout > 1200 else 3600
-            actual_llm = target_llm if llm_type != 'local' else self.get_llm('translator')
-            
-            return PDFTranslatorAgent(
-                llm=actual_llm, 
-                timeout=trans_timeout,
-                verbose=True, 
-                **kwargs
-            )
-            
-        elif agent_type == 'NewsAgent':
-            from agents.news_agent import NewsAgent
-            return NewsAgent(
-                llm=target_llm,
-                tool_manager=tool_mgr,
-                timeout=timeout,
-                verbose=True, 
-                **kwargs
-            )
+        from agents.generic_agent import GenericAgent
+        category = kwargs.pop('required_category', None)
+        role_prompt = kwargs.pop('role_prompt', kwargs.pop('system_prompt', ''))
         
-        elif agent_type == 'ChatAgent':
-            from agents.chat_agent import ChatAgent
-            return ChatAgent(
-                llm=target_llm, 
-                tool_manager=tool_mgr,
-                timeout=timeout, 
-                verbose=True, 
-                **kwargs
-            )
-            
-        else:
-            raise ValueError(f"Unknown agent type: {agent_type}")
+        return GenericAgent(
+            llm=target_llm,
+            tool_manager=tool_mgr,
+            required_category=category,
+            system_prompt=role_prompt,
+            timeout=timeout,
+            max_steps=10,
+            verbose=True,
+            **kwargs
+        )
 
-    def get_agent(self, agent_type: str, llm_type: str = 'local', **kwargs) -> Any:
+    def get_agent(self, agent_type: str = 'GenericAgent', llm_type: str = 'local', **kwargs) -> Any:
         return self.create_agent(agent_type, llm_type=llm_type, **kwargs)

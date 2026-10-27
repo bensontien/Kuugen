@@ -5,7 +5,7 @@ import asyncio
 import ray
 from core.state import AgentState, Plan, Task
 from core.prompt_loader import PromptLoader 
-from core.ray_manager import AgentActor, GenericAgentActor, ToolManagerActor, merge_states
+from core.ray_manager import GenericAgentActor, ToolManagerActor, merge_states
 
 class KuugenOrchestrator:
     def __init__(self, llm, registry, tool_manager=None, tool_manager_actor=None):
@@ -28,30 +28,13 @@ class KuugenOrchestrator:
             return
 
         print("[Orchestrator] Initializing Ray Cluster Components...")
-        
-        # Mapping from node name (in registry) to (agent_type, llm_type)
-        node_agent_map = {
-            "SearchPaperAgent": ("SearchPaperAgent", "external"),
-            "TranslatorAgent": ("PDFTranslatorAgent", "translator"),
-            "NewsAgent": ("NewsAgent", "external"),
-            "ChatAgent": ("ChatAgent", "external"),
-        }
-
         print("[Orchestrator] Initializing Ray Agent Actors (Lazy Init Mode)...")
         for name, node in self.registry._nodes.items():
-            if name in node_agent_map:
-                agent_type, llm_type = node_agent_map[name]
-                self.actors[name] = AgentActor.remote(
-                    agent_type=agent_type, 
-                    llm_type=llm_type, 
-                    tool_manager_actor=self.tool_manager_actor
-                )
-            else:
-                # Handle plain functions like DownloadTool wrapper
-                from core.ray_manager import FunctionActor
-                self.actors[name] = FunctionActor.remote(name, node.executor)
+            # Handle plain functions like DownloadTool wrapper
+            from core.ray_manager import FunctionActor
+            self.actors[name] = FunctionActor.remote(name, node.executor)
         
-        # Add a special actor for GenericAgent handling
+        # Pre-warm default GenericAgentActor
         self.actors["GenericAgentActor"] = GenericAgentActor.remote(
             llm_type='external', 
             tool_manager_actor=self.tool_manager_actor
@@ -217,14 +200,17 @@ class KuugenOrchestrator:
                         s["status"] = "running"
 
                 # Execute via Ray Actor if initialized, otherwise fallback to local
-                if ray.is_initialized() and (task.assigned_node in self.actors or task.assigned_node == "GenericAgent"):
-                    if task.assigned_node == "GenericAgent":
-                        future = self.actors["GenericAgentActor"].run.remote(state, task.model_dump())
-                    else:
+                if ray.is_initialized():
+                    if task.assigned_node in self.actors and task.assigned_node != "GenericAgent":
                         future = self.actors[task.assigned_node].run.remote(state)
+                    else:
+                        # Dynamically spawn a dedicated GenericAgentActor for each parallel task
+                        actor = GenericAgentActor.remote(
+                            llm_type='external', 
+                            tool_manager_actor=self.tool_manager_actor
+                        )
+                        future = actor.run.remote(state, task.model_dump())
                 else:
-                    if ray.is_initialized():
-                        print(f"[Warning] Node {task.assigned_node} not in actors, running locally.")
                     future = asyncio.create_task(self._run_local_task(task, state))
                 
                 running_futures[future] = tid
@@ -336,15 +322,16 @@ class KuugenOrchestrator:
     async def _run_local_task(self, task, state):
         """Fallback local execution if Ray is not available or node not wrapped"""
         from agents.generic_agent import GenericAgent
-        if task.assigned_node == "GenericAgent":
-             temp_agent = GenericAgent(
+        if task.assigned_node == "GenericAgent" or task.assigned_node not in self.registry._nodes:
+            temp_agent = GenericAgent(
                 llm=self.llm,
                 tool_manager=self.tool_manager,
                 required_category=task.required_category,
-                system_prompt=task.role_prompt if task.role_prompt else "Use tools.",
-                task_id=task.task_id
+                system_prompt=task.role_prompt if task.role_prompt else "You are an autonomous AI problem-solving agent.",
+                task_id=task.task_id,
+                max_steps=10
             )
-             return await temp_agent.run(state=state)
+            return await temp_agent.run(state=state)
         else:
             node = self.registry.get_node(task.assigned_node)
             if node:

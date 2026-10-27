@@ -8,7 +8,88 @@ The system features a clean separation between the "Brain" (LLM reasoning and pl
 
 ## System Architecture
 
-![System Architecture](AC.png)
+```mermaid
+flowchart TD
+    subgraph Client["Frontend Layer (Kuugen UI)"]
+        UI["React 19 + Vite Client"]
+        WSClient["Live WebSocket Client (Stage & Step Visualizer)"]
+        KatexEngine["Markdown & KaTeX Engine (LaTeX Math Rendering)"]
+        UI --> WSClient
+        UI --> KatexEngine
+    end
+
+    subgraph Gateway["API Gateway Layer (FastAPI)"]
+        APIServer["FastAPI Server (server.py)"]
+        MemoryMgr["MemoryManager (Sliding Window & Compression)"]
+        OpenCCConverter["OpenCC (Simplified to Traditional)"]
+        PromptLoader["PromptLoader (Prompts-as-Code in .kuugen/)"]
+        APIServer --> MemoryMgr
+        APIServer --> OpenCCConverter
+        APIServer --> PromptLoader
+    end
+
+    subgraph Brain["Brain Layer (Orchestration & Planning)"]
+        Orchestrator["KuugenOrchestrator (core/orchestrator.py)"]
+        DAGPlanner["LLM DAG Planner (Task Graph & Dependencies)"]
+        HybridScheduler["Parallel Hybrid Scheduler (ray.wait + asyncio.wait)"]
+        Orchestrator --> DAGPlanner
+        DAGPlanner --> HybridScheduler
+    end
+
+    subgraph RayCluster["Distributed Execution Layer (Ray Workers)"]
+        subgraph GenericActors["Dynamic ReAct Agents"]
+            AgentActor1["GenericAgentActor 1 (Thought - Action - Observation)"]
+            AgentActor2["GenericAgentActor 2 (Thought - Action - Observation)"]
+            AgentActorN["GenericAgentActor N (Thought - Action - Observation)"]
+        end
+        FuncActor["FunctionActor (Standalone Nodes e.g. DownloadTool)"]
+    end
+
+    subgraph Muscle["Muscle Layer (Tool & Skill Infrastructure)"]
+        ToolActor["ToolManagerActor & RayToolManagerProxy"]
+        
+        subgraph ModularSkills["Modular Skills (.kuugen/skills/)"]
+            SearchPaper["search_paper (ArXiv, OpenAlex, Snowballing)"]
+            PDFTranslator["pdf_translator (Chunked Parallel Translation)"]
+            NewsSearch["news_search (Google News RSS & Scraping)"]
+        end
+
+        subgraph RemoteMCP["MCP Server (tools_server.py)"]
+            MCPClient["FastMCP Client (stdio)"]
+            WebScraper["Web Scraper Tool"]
+            PDFDownloader["PDF Downloader Tool"]
+            MCPClient --> WebScraper
+            MCPClient --> PDFDownloader
+        end
+
+        CLITool["CLITool (Windows PowerShell from WSL)"]
+
+        ToolActor --> ModularSkills
+        ToolActor --> RemoteMCP
+        ToolActor --> CLITool
+    end
+
+    subgraph Models["Inference Layer (ModelFactory & Native HTTP Client)"]
+        ModelClient["OpenAICompatibleClient (core/llm_client.py)"]
+        vLLM["Local GPU vLLM on Ray"]
+        OpenRouter["OpenRouter API"]
+        OpenAI["OpenAI API"]
+        ModelClient --> vLLM
+        ModelClient --> OpenRouter
+        ModelClient --> OpenAI
+    end
+
+    %% Cross-layer connections
+    WSClient <-->|"WebSocket Events & State"| APIServer
+    APIServer -->|"Submit Query"| Orchestrator
+    HybridScheduler -->|"Parallel Dispatch"| AgentActor1
+    HybridScheduler -->|"Parallel Dispatch"| AgentActor2
+    HybridScheduler -->|"Parallel Dispatch"| AgentActorN
+    HybridScheduler -->|"Execute"| FuncActor
+    GenericActors <-->|"Execute Tools & Skills"| ToolActor
+    Brain -.->|"Inference"| ModelClient
+    GenericActors -.->|"Inference"| ModelClient
+```
 
 ### Key Architectural Pillars
 -   **Ray-Powered Parallel DAG Scheduling**: Complex user queries are analyzed and decomposed into a Directed Acyclic Graph (DAG) of dependent/independent tasks (`depends_on`). Ready tasks execute concurrently across a Ray worker cluster via a hybrid scheduler that dynamically polls Ray `ObjectRef`s and native `asyncio.Task`s using `ray.wait` and `asyncio.wait(FIRST_COMPLETED)`, preventing deadlocks.

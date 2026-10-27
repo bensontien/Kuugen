@@ -9,7 +9,7 @@ This skill executes bilingual web searches for current topics, scrapes webpage c
 
 ## Execution Pipeline
 1. **Bilingual Search**:
-   - Searches DuckDuckGo for both English and Chinese queries for the specified topic.
+   - Searches Google News RSS for both English and Traditional Chinese feeds for the specified topic.
    - De-duplicates result URLs and retains up to 10 sources.
 2. **Scrape Webpages**:
    - Concurrently invokes `ToolManager` to execute the `fetch_page_content` tool for each webpage URL.

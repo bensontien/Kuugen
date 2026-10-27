@@ -11,7 +11,6 @@ httpx
 
 # Tools & Agents Utilities
 beautifulsoup4
-duckduckgo-search
 arxiv
 pymupdf
 
@@ -27,3 +26,7 @@ opencc-python-reimplemented
 
 # Distributed & Parallel Execution
 ray[default]
+
+# Testing
+pytest
+pytest-asyncio

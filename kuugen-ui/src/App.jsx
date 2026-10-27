@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'; // Import GFM plugin to support tables and advanced syntax
+import remarkMath from 'remark-math'; // Support LaTeX mathematical expressions
+import rehypeKatex from 'rehype-katex'; // Render LaTeX formulas via KaTeX
+import 'katex/dist/katex.min.css'; // KaTeX formula stylesheets
 import { useTranslation } from './hooks/useTranslation';
 import './App.css';
 
@@ -272,7 +275,8 @@ function App() {
                       {msg.data.reply && (
                         <div className="text-reply markdown-content">
                           <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
                             components={{
                               a: ({node: _node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
                             }}
@@ -288,7 +292,8 @@ function App() {
                             <h3>{t('cards.newsReport')}</h3>
                             <div className="markdown-content">
                               <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
                                 components={{
                                   a: ({node: _node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
                                 }}
@@ -305,7 +310,8 @@ function App() {
                             {msg.data.search_report_content && (
                               <div className="markdown-content" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
                                 <ReactMarkdown
-                                  remarkPlugins={[remarkGfm]}
+                                  remarkPlugins={[remarkGfm, remarkMath]}
+                                  rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
                                   components={{
                                     a: ({node: _node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
                                   }}
